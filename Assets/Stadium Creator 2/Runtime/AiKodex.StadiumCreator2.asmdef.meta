@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: 299bb5c74044c7e4c812129adf99de9f
+AssemblyDefinitionImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 426206
+  packageName: Stadium Creator 2
+  packageVersion: 1.0
+  assetPath: Assets/Stadium Creator 2/Runtime/AiKodex.StadiumCreator2.asmdef
+  uploadId: 1042894

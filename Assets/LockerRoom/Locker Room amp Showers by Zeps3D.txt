@@ -1,0 +1,23 @@
+Title: Locker Room amp Showers
+URL: http://sketchfab.com/3d-models/locker-room-showers-4137cd59f12c471e9ec084eca62cf5a7
+Author: https://sketchfab.com/Zeps3D
+
+Vertices: 203807
+Polygons: 253347
+Animations: 0
+
+Download Date: 08/11/2026
+Download Format: FBX
+Download Path: C:\Users\geral\Downloads\3d_Ripper_Pro_v110\Downloads\Zeps3D\01- Locker.Room.amp.Showers\
+Download File: 4137cd59f12c471e9ec084eca62cf5a7.fbx
+
+Textures: 9
+#1: 1e74ee4218124ab19054da7ba90db13d_RGB_laminate_base.png
+#2: 26e4e73d361645cabd50f16d074b2d4c_N_tiles_Normal.jpeg
+#3: 3a62d8766b104b9dadb35f304ad28002_R_tiles_Roughness.jpeg
+#4: 6cd339bfff90476ca67cd19d296c1507_RGB_floor_base_color.png
+#5: 77115dcf48dd4944a7c21a4acedace45_N_ball_Normal_OpenGL.png
+#6: a5893165eb5d4ed5b6fb1d86f99be779_RGB_ball_Base_color.png
+#7: b26a223b812141b2ab243ed47f025150_R_ball_Roughness.png
+#8: c479bdc8756442aca14abe681d30e05f_RGB_tile_green_base_color.png
+#9: e0cbb6b79a5f46ef87fcb396f5eff46e_RGB_tile_base_color.png

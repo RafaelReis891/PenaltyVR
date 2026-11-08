@@ -1,0 +1,341 @@
+fileFormatVersion: 2
+guid: 50b8115680a58ff408b45beee65999ff
+ModelImporter:
+  serializedVersion: 24600
+  internalIDToNameTable: []
+  externalObjects:
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Aro_Portal
+    second: {fileID: 2100000, guid: 2467f4b1edf0b4044b46d8d7d3ec7978, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Cadeiras_Amarelo
+    second: {fileID: 2100000, guid: c876a6d4b83551c43ab622464cb42cf4, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Cadeiras_Verde
+    second: {fileID: 2100000, guid: 7c9428eb0a2ef174e9d1bc6bdec5d6d1, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Ceu_BlueHour
+    second: {fileID: 2100000, guid: 1618c349e0706624aac972dd8e33f49b, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Concreto_Claro
+    second: {fileID: 2100000, guid: 30fa34b3052cc9a449f90ba0ebac5e54, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Concreto_Escuro
+    second: {fileID: 2100000, guid: b91435246c8321d46b3fa7fdaa676d48, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Crowd
+    second: {fileID: 2100000, guid: f4df32a4c43d0e244991ce80165a70c6, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: ETFE_Vortice
+    second: {fileID: 2100000, guid: 4b0b7f5e65171754e87ae07d1369bffd, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Emissor_Teleporte
+    second: {fileID: 2100000, guid: 4f9b63d3a200dfc4c948cbb3c7f0827b, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Espelho
+    second: {fileID: 2100000, guid: e859d871096575a40ba0bacc49b14cb6, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Feixe_Teleporte
+    second: {fileID: 2100000, guid: 5eb60147685f5d44daf0ed220a3fb5d4, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Grama
+    second: {fileID: 2100000, guid: 2ecdd90dd4aa87049a44df851ad710a3, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: LED_Fascia
+    second: {fileID: 2100000, guid: b02b71afe225d8f438db4eb1b4286759, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Linha_Campo
+    second: {fileID: 2100000, guid: 7e954c325b80f7c42bd0968957d71f43, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Luz_Acesso
+    second: {fileID: 2100000, guid: db716ed09e9c00e40bd77636a2cc99c9, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Membrana_Interna
+    second: {fileID: 2100000, guid: fc07514fd26208f42bfa5e20c76576ce, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Metal_Claro
+    second: {fileID: 2100000, guid: 32d0e4b03c9144e40aee5eb4cf61dc68, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Nucleo_Emissivo
+    second: {fileID: 2100000, guid: 2cf20786862ebef4ba5ac41eb91183e8, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Pad_Anel
+    second: {fileID: 2100000, guid: f0cb4812270ba45468f6aa0f88c3350a, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Placa_Anuncio_01
+    second: {fileID: 2100000, guid: 2941172ce78c5634784505da422dc70b, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Placa_Anuncio_02
+    second: {fileID: 2100000, guid: 34b3582282df61e4ea5b34c5a955336f, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Placa_Anuncio_03
+    second: {fileID: 2100000, guid: 5bddf1cbbd651fc4c95bcdc0c9c015ec, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Placa_Anuncio_04
+    second: {fileID: 2100000, guid: b1a65e9390d49864faaea355833c8eeb, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Placa_Estrutura
+    second: {fileID: 2100000, guid: 45fb9e9d36d616d409250f7c39ccd08e, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Plataforma_Borda
+    second: {fileID: 2100000, guid: ebe725ae0a7d1174a8dafee15eaf703c, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Plataforma_Clara
+    second: {fileID: 2100000, guid: 8a32f0048ef5dfe44b16ac1bd5544cfb, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Portal_A1_Cristo
+    second: {fileID: 2100000, guid: a7a59cb127742c543ba830f45332c215, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Portal_A2_Dunas
+    second: {fileID: 2100000, guid: 7264ce5399b3f054daad49d12331d431, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Portal_A3_Floresta
+    second: {fileID: 2100000, guid: 7ae44f0a540f998489e2c25a6b78e37f, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Portal_A4_Mar
+    second: {fileID: 2100000, guid: e6dca93cc458fd34080d7d71e5146272, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Portal_A5_Serra
+    second: {fileID: 2100000, guid: 97b5fc66908da1e4abdcee3cc7f6a9e7, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Portal_A6_Cerrado
+    second: {fileID: 2100000, guid: 951025d678aa8264c986865fd8172b86, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Portal_A7_Mata
+    second: {fileID: 2100000, guid: e86f200260e3a2746bc20bc8c3ca1c7b, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Portal_A8_Pantanal
+    second: {fileID: 2100000, guid: 69bdfac3b8d993b418482ecbb5c82a21, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Poste_Gol
+    second: {fileID: 2100000, guid: 18e399b8a72f67b44afd84576854d1ff, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Rede
+    second: {fileID: 2100000, guid: 339ff476823ec9847ab2fb9804de9a0f, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Refletor
+    second: {fileID: 2100000, guid: c6bbf5daae547354e90584d147e93678, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Rim_Emissivo
+    second: {fileID: 2100000, guid: f8cd1891a89ff914497a19bf5e182d33, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Telao_01
+    second: {fileID: 2100000, guid: 372dfcdd6233f4f43ba634b473198c78, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Telao_02
+    second: {fileID: 2100000, guid: 2b4f17f3877aa3a45b3badd19e60d48e, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Telao_03
+    second: {fileID: 2100000, guid: 2c0cc378877931f459ab7f00515e9d72, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Telao_04
+    second: {fileID: 2100000, guid: 297e0ea2513302448a3cae3d10c1ed16, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Telao_Moldura
+    second: {fileID: 2100000, guid: 91a8a00bf256d75478f9d0d0703c5597, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Vidro_Escuro
+    second: {fileID: 2100000, guid: 3b8a65a23a25da84e9671ba4c6effdae, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Vidro_Torre
+    second: {fileID: 2100000, guid: 52e481061d6d4854d9815ead953d30b6, type: 2}
+  materials:
+    materialImportMode: 2
+    materialName: 0
+    materialSearch: 1
+    materialLocation: 1
+    searchTexturesGlobally: 0
+  animations:
+    legacyGenerateAnimations: 4
+    bakeSimulation: 0
+    resampleCurves: 1
+    optimizeGameObjects: 0
+    removeConstantScaleCurves: 0
+    motionNodeName: 
+    animationImportErrors: 
+    animationImportWarnings: 
+    animationRetargetingWarnings: 
+    animationDoRetargetingWarnings: 0
+    importAnimatedCustomProperties: 0
+    importConstraints: 0
+    animationCompression: 1
+    animationRotationError: 0.5
+    animationPositionError: 0.5
+    animationScaleError: 0.5
+    animationWrapMode: 0
+    extraExposedTransformPaths: []
+    extraUserProperties: []
+    clipAnimations: []
+    isReadable: 0
+  meshes:
+    lODScreenPercentages: []
+    globalScale: 1
+    meshCompression: 2
+    addColliders: 0
+    useSRGBMaterialColor: 1
+    sortHierarchyByName: 1
+    preBakeConvexCollisionMesh: 1
+    preBakeTriangleCollisionMesh: 1
+    importPhysicalCameras: 1
+    importVisibility: 1
+    importBlendShapes: 1
+    importCameras: 1
+    importLights: 1
+    nodeNameCollisionStrategy: 1
+    fileIdsGeneration: 2
+    swapUVChannels: 0
+    generateSecondaryUV: 0
+    useFileUnits: 1
+    keepQuads: 0
+    weldVertices: 1
+    bakeAxisConversion: 0
+    preserveHierarchy: 0
+    skinWeightsMode: 0
+    maxBonesPerVertex: 4
+    minBoneWeight: 0.001
+    optimizeBones: 1
+    generateMeshLods: 0
+    meshLodGenerationFlags: 0
+    maximumMeshLod: -1
+    importUVs: -1
+    importVertexColors: 1
+    meshOptimizationFlags: -1
+    indexFormat: 0
+    secondaryUVAngleDistortion: 8
+    secondaryUVAreaDistortion: 15.000001
+    secondaryUVHardAngle: 88
+    secondaryUVMarginMethod: 1
+    secondaryUVMinLightmapResolution: 40
+    secondaryUVMinObjectScale: 1
+    secondaryUVPackMargin: 4
+    useFileScale: 1
+    strictVertexDataChecks: 0
+  tangentSpace:
+    normalSmoothAngle: 60
+    normalImportMode: 0
+    tangentImportMode: 3
+    normalCalculationMode: 4
+    legacyComputeAllNormalsFromSmoothingGroupsWhenMeshHasBlendShapes: 0
+    blendShapeNormalImportMode: 1
+    normalSmoothingSource: 0
+    calculateBlendshapeNormalsDeltaFromImportedNormals: 0
+  referencedClips: []
+  importAnimation: 1
+  humanDescription:
+    serializedVersion: 3
+    human: []
+    skeleton: []
+    armTwist: 0.5
+    foreArmTwist: 0.5
+    upperLegTwist: 0.5
+    legTwist: 0.5
+    armStretch: 0.05
+    legStretch: 0.05
+    feetSpacing: 0
+    globalScale: 1
+    rootMotionBoneName: 
+    hasTranslationDoF: 0
+    hasExtraRoot: 1
+    skeletonHasParents: 1
+  lastHumanDescriptionAvatarSource: {instanceID: 0}
+  autoGenerateAvatarMappingIfUnspecified: 1
+  animationType: 1
+  humanoidOversampling: 1
+  avatarSetup: 0
+  addHumanoidExtraRootOnlyWhenUsingAvatar: 1
+  importBlendShapeDeformPercent: 1
+  remapMaterialsIfMaterialImportModeIsNone: 0
+  additionalBone: 0
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 

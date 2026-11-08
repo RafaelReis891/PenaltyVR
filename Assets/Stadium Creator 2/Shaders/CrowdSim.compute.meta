@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: 570d3cf65093d5843a096557da2f7865
+ComputeShaderImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 426206
+  packageName: Stadium Creator 2
+  packageVersion: 1.0
+  assetPath: Assets/Stadium Creator 2/Shaders/CrowdSim.compute
+  uploadId: 1042894

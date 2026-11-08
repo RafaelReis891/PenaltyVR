@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: efdfb44b1f4e2774596330ec90bd5946
+ShaderImporter:
+  externalObjects: {}
+  defaultTextures: []
+  nonModifiableTextures: []
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 426206
+  packageName: Stadium Creator 2
+  packageVersion: 1.0
+  assetPath: Assets/Stadium Creator 2/Shaders/CrowdCharacter.shader
+  uploadId: 1042894

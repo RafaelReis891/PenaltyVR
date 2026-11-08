@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: de7f642b270d5d940af51166a16b4e63
+ShaderIncludeImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 426206
+  packageName: Stadium Creator 2
+  packageVersion: 1.0
+  assetPath: Assets/Stadium Creator 2/Shaders/CrowdCommon.hlsl
+  uploadId: 1042894

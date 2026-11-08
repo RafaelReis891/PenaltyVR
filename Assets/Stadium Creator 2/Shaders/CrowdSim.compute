@@ -1,0 +1,284 @@
+// GPU crowd simulation: behaviour (animation selection), culling/LOD + indirect draw lists, skinning palettes.
+// One dispatch of each kernel per frame; the CPU never touches per-spectator data after generation.
+#pragma kernel Behaviour
+#pragma kernel ResetArgs
+#pragma kernel Cull
+#pragma kernel BuildDispatch
+#pragma kernel Palette
+
+#include "CrowdCommon.hlsl"
+
+#define MAX_BONES 64
+#define PALETTE_GROUPS_X 32768
+
+StructuredBuffer<CrowdInstance>    _Instances;
+RWStructuredBuffer<CrowdAnimState> _AnimState;
+StructuredBuffer<CrowdClip>        _Clips;
+StructuredBuffer<CrowdEmotion>     _Emotion;          // [0] previous mood, [1] current mood
+StructuredBuffer<uint2>            _CategoryRanges;   // per category (start, count) into _CategoryClips
+StructuredBuffer<uint>             _CategoryClips;
+StructuredBuffer<float4>           _AnimRot;          // (frame * boneCount + bone) quaternion delta from bind
+StructuredBuffer<float4>           _AnimHips;         // frame: hips position (reference skeleton)
+StructuredBuffer<float4>           _BindPos;          // variant * boneCount + bone: xyz bind head; w: bone0 = hips scale, bone1 = animation-set frame offset
+StructuredBuffer<int>              _BoneParents;
+StructuredBuffer<uint>             _RegionOffsets;    // per draw command
+RWByteAddressBuffer                _DrawArgs;         // IndirectDrawIndexedArgs[commands] (20 bytes each)
+RWStructuredBuffer<uint>           _DrawList;
+RWStructuredBuffer<uint>           _VisibleList;
+RWByteAddressBuffer                _Counters;         // [0] visible count
+RWByteAddressBuffer                _DispatchArgs;     // palette dispatch (x, y, z)
+RWStructuredBuffer<float4>         _Palette;          // (instance * boneCount + bone) * 2 : {quat, translation}
+
+uint   _InstanceCount;
+uint   _BoneCount;
+uint   _VariantCount;
+uint   _LodCount;
+uint   _CommandCount;
+uint   _HairCommandOffset;  // hair (alpha-tested) commands mirror the opaque ones at this offset
+float  _CrowdTime;
+float  _EmotionTime;
+uint   _Epoch;
+float4 _WaveOrigin;        // xyz origin, w = speed m/s (0 = no wave)
+float4 _FrustumPlanes[6];
+float4 _CameraPos;
+float4 _LodDistances;      // x,y,z = max distance of LOD0..2, w = cull distance
+float  _CullRadius;
+uint   _DebugPose;         // 1 = bind pose, 2 = bind pose + _DebugBone rotated 60 deg (skinning checks)
+uint   _DebugBone;
+
+// ------------------------------------------------------------------------------------------------ behaviour
+float CategoryWeight(CrowdEmotion e, uint posture, uint i)
+{
+    float4 a = posture == 0 ? e.sit0 : e.stand0;
+    float4 b = posture == 0 ? e.sit1 : e.stand1;
+    float w = i < 4 ? a[min(i, 3u)] : b[(max(i, 4u) - 4u) & 3u];
+    uint cat = posture * 8 + i;
+    return _CategoryRanges[cat].y > 0 ? max(w, 0) : 0;
+}
+
+uint PickClip(CrowdEmotion e, uint posture, inout uint rng)
+{
+    float total = 0;
+    [unroll] for (uint i = 0; i < 8; i++) total += CategoryWeight(e, posture, i);
+    uint cat = posture * 8; // idle fallback
+    if (total > 0)
+    {
+        float r = CrowdRand(rng) * total;
+        bool found = false;
+        [unroll] for (uint j = 0; j < 8; j++)
+        {
+            float w = CategoryWeight(e, posture, j);
+            if (!found && w > 0)
+            {
+                cat = posture * 8 + j;
+                found = r < w;
+                r -= w;
+            }
+        }
+    }
+    uint2 range = _CategoryRanges[cat];
+    if (range.y == 0) range = _CategoryRanges[posture * 8];
+    if (range.y == 0) range = _CategoryRanges[(1 - posture) * 8];
+    if (range.y == 0) return 0;
+    uint k = min((uint)(CrowdRand(rng) * range.y), range.y - 1);
+    return _CategoryClips[range.x + k];
+}
+
+[numthreads(64, 1, 1)]
+void Behaviour(uint id : SV_DispatchThreadID)
+{
+    if (id >= _InstanceCount) return;
+    CrowdAnimState s = _AnimState[id];
+    CrowdInstance inst = _Instances[id];
+    float enthusiasm = 0.5 + ((inst.packed >> 16) & 255u) / 255.0;   // 0.5 .. 1.5
+    uint rng = CrowdHash(id * 7919u + _Epoch * 104729u + (uint)(_CrowdTime * 60.0) * 31u);
+
+    if (s.epoch != _Epoch)
+    {
+        CrowdEmotion ne = _Emotion[1];
+        uint r2 = CrowdHash(id * 3571u + _Epoch * 6007u);
+        float delay = lerp(ne.reactDelayMin, ne.reactDelayMax, CrowdRand(r2));
+        delay *= saturate(1.6 - enthusiasm * 0.7);
+        if (_WaveOrigin.w > 0) delay += distance(inst.position, _WaveOrigin.xyz) / _WaveOrigin.w;
+        // a small fraction of spectators simply don't react
+        if (CrowdRand(r2) < 0.04 * (1.5 - enthusiasm)) delay += 4.0;
+        s.reactAt = _EmotionTime + delay;
+        s.epoch = _Epoch;
+        s.flags |= CROWD_FLAG_PENDING;
+    }
+
+    bool pending = (s.flags & CROWD_FLAG_PENDING) != 0;
+    bool react = pending && _CrowdTime >= s.reactAt;
+    bool decide = _CrowdTime >= s.nextDecision;
+
+    if (react || decide)
+    {
+        CrowdEmotion e = _Emotion[(pending && !react) ? 0 : 1];
+        CrowdClip cur = _Clips[s.clipA];
+        uint curPosture = cur.posture;
+
+        float seatBias = 0; // reserved
+        float standP = saturate(e.standProbability * enthusiasm + seatBias);
+        uint posture = CrowdRand(rng) < standP ? 1u : 0u;
+        // posture hysteresis on spontaneous decisions: people don't stand up / sit down constantly
+        if (!react && posture != curPosture && CrowdRand(rng) < 0.7) posture = curPosture;
+
+        uint clip = PickClip(e, posture, rng);
+        if (clip != s.clipA || react)
+        {
+            CrowdClip c = _Clips[clip];
+            s.clipB = s.clipA; s.startB = s.startA; s.speedB = s.speedA;
+            float speed = e.speed * lerp(0.88, 1.12, CrowdRand(rng)) * lerp(0.9, 1.1, saturate(enthusiasm - 0.5));
+            float phase = CrowdRand(rng) * c.duration;
+            phase = lerp(phase, 0.0, e.syncAmount);
+            s.clipA = clip;
+            s.speedA = speed;
+            s.startA = _CrowdTime - phase / speed;
+            s.blendStart = _CrowdTime;
+            float blend = e.blendDuration * lerp(0.8, 1.25, CrowdRand(rng));
+            if (c.posture != curPosture) blend *= 1.7; // standing up / sitting down takes longer
+            s.blendDuration = blend;
+        }
+        s.nextDecision = _CrowdTime + lerp(e.intervalMin, e.intervalMax, CrowdRand(rng));
+        if (react) s.flags &= ~CROWD_FLAG_PENDING;
+    }
+    _AnimState[id] = s;
+}
+
+// ------------------------------------------------------------------------------------------------ culling
+[numthreads(64, 1, 1)]
+void ResetArgs(uint id : SV_DispatchThreadID)
+{
+    if (id < _CommandCount) _DrawArgs.Store(id * 20 + 4, 0);
+    if (id == 0) _Counters.Store(0, 0);
+}
+
+[numthreads(64, 1, 1)]
+void Cull(uint id : SV_DispatchThreadID)
+{
+    if (id >= _InstanceCount) return;
+    CrowdInstance inst = _Instances[id];
+    float3 c = inst.position + float3(0, 0.85 * inst.scale, 0);
+    float r = _CullRadius * inst.scale;
+    [unroll] for (uint p = 0; p < 6; p++)
+    {
+        if (dot(_FrustumPlanes[p].xyz, c) + _FrustumPlanes[p].w < -r) return;
+    }
+    float d = distance(c, _CameraPos.xyz);
+    if (d > _LodDistances.w) return;
+    uint lod = d < _LodDistances.x ? 0u : (d < _LodDistances.y ? 1u : (d < _LodDistances.z ? 2u : 3u));
+    lod = min(lod, _LodCount - 1);
+    uint cmd = lod * _VariantCount + inst.variant;
+    uint slot;
+    _DrawArgs.InterlockedAdd(cmd * 20 + 4, 1, slot);
+    uint unused;
+    _DrawArgs.InterlockedAdd((cmd + _HairCommandOffset) * 20 + 4, 1, unused);
+    _DrawList[_RegionOffsets[cmd] + slot] = id;
+    uint v;
+    _Counters.InterlockedAdd(0, 1, v);
+    _VisibleList[v] = id;
+}
+
+[numthreads(1, 1, 1)]
+void BuildDispatch(uint id : SV_DispatchThreadID)
+{
+    uint count = _Counters.Load(0);
+    _DispatchArgs.Store(0, min(count, (uint)PALETTE_GROUPS_X));
+    _DispatchArgs.Store(4, (count + PALETTE_GROUPS_X - 1) / PALETTE_GROUPS_X);
+    _DispatchArgs.Store(8, 1);
+}
+
+// ------------------------------------------------------------------------------------------------ palettes
+groupshared float4 gsRot[MAX_BONES];
+groupshared float3 gsHips;
+groupshared uint gsId;
+
+float4 NlerpQ(float4 a, float4 b, float t)
+{
+    b = dot(a, b) < 0 ? -b : b;
+    return normalize(lerp(a, b, t));
+}
+
+void ClipFrames(CrowdClip c, float start, float speed, out uint f0, out uint f1, out float ft)
+{
+    float t = (_CrowdTime - start) * speed;
+    t = t - floor(t / c.duration) * c.duration;
+    float f = t * c.fps;
+    f0 = min((uint)f, c.frameCount - 1);
+    f1 = (f0 + 1) % c.frameCount;
+    ft = frac(f);
+    f0 += c.frameOffset;
+    f1 += c.frameOffset;
+}
+
+[numthreads(64, 1, 1)]
+void Palette(uint3 gid : SV_GroupID, uint gi : SV_GroupIndex)
+{
+    uint vi = gid.x + gid.y * PALETTE_GROUPS_X;
+    if (gi == 0)
+    {
+        uint count = _Counters.Load(0);
+        gsId = vi < count ? _VisibleList[vi] : 0xFFFFFFFFu;
+    }
+    GroupMemoryBarrierWithGroupSync();
+    uint id = gsId;
+    bool valid = id != 0xFFFFFFFFu;
+    if (!valid) id = 0;
+    CrowdInstance inst = _Instances[id];
+    CrowdAnimState s = _AnimState[id];
+    CrowdClip ca = _Clips[s.clipA];
+    CrowdClip cb = _Clips[s.clipB];
+    float w = s.blendDuration > 0 ? saturate((_CrowdTime - s.blendStart) / s.blendDuration) : 1;
+    w = w * w * (3 - 2 * w);
+
+    uint a0, a1, b0, b1; float at, bt;
+    ClipFrames(ca, s.startA, s.speedA, a0, a1, at);
+    ClipFrames(cb, s.startB, s.speedB, b0, b1, bt);
+    uint setOff = (uint)(_BindPos[inst.variant * _BoneCount + 1].w + 0.5); // animation set (per-gender reference) offset
+    a0 += setOff; a1 += setOff; b0 += setOff; b1 += setOff;
+    uint B = _BoneCount;
+
+    if (gi < B)
+    {
+        float4 qa = NlerpQ(_AnimRot[a0 * B + gi], _AnimRot[a1 * B + gi], at);
+        float4 q = qa;
+        if (w < 1)
+        {
+            float4 qb = NlerpQ(_AnimRot[b0 * B + gi], _AnimRot[b1 * B + gi], bt);
+            q = NlerpQ(qb, qa, w);
+        }
+        if (_DebugPose == 1) q = float4(0, 0, 0, 1);
+        if (_DebugPose == 2) q = gi == _DebugBone ? float4(0.5, 0, 0, 0.8660254) : float4(0, 0, 0, 1);
+        gsRot[gi] = q;
+    }
+    if (gi == 0)
+    {
+        float3 ha = lerp(_AnimHips[a0].xyz, _AnimHips[a1].xyz, at);
+        float3 hb = lerp(_AnimHips[b0].xyz, _AnimHips[b1].xyz, bt);
+        float3 h = lerp(hb, ha, w);
+        float fwd = lerp(cb.rootForward, ca.rootForward, w);
+        float hipsScale = _BindPos[inst.variant * B].w;
+        h *= hipsScale;
+        h.z += fwd * inst.standOffset;
+        if (_DebugPose >= 1) h = _BindPos[inst.variant * B].xyz;
+        gsHips = h;
+    }
+    GroupMemoryBarrierWithGroupSync();
+    if (gi >= B || !valid) return;
+
+    uint vb = inst.variant * B;
+    float3 p = gsHips;
+    int cur = (int)gi;
+    [loop] for (int guard = 0; guard < 16; guard++)
+    {
+        int par = _BoneParents[cur];
+        if (par < 0) break;
+        p += CrowdQRot(gsRot[par], _BindPos[vb + cur].xyz - _BindPos[vb + par].xyz);
+        cur = par;
+    }
+    float4 q = gsRot[gi];
+    float3 t = p - CrowdQRot(q, _BindPos[vb + gi].xyz);
+    uint o = (id * B + gi) * 2;
+    _Palette[o] = q;
+    _Palette[o + 1] = float4(t, _CrowdTime);   // .w = evaluation time stamp (diagnostics; unused by the vertex shader)
+}

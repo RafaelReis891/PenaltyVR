@@ -1,0 +1,9 @@
+{
+    "name": "AiKodex.StadiumCreator2.Editor",
+    "rootNamespace": "AiKodex.StadiumCreator2.Editor",
+    "references": ["AiKodex.StadiumCreator2"],
+    "includePlatforms": ["Editor"],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "autoReferenced": true
+}
