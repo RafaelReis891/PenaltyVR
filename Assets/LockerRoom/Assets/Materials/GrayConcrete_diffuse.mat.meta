@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 9cd112df695e5ef4a8639e4b5c4d4bea
+timeCreated: 1501426217
+licenseType: Store
+NativeFormatImporter:
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 96851
+  packageName: Locker Room
+  packageVersion: 1.1
+  assetPath: Assets/LockerRoom/Assets/Materials/GrayConcrete_diffuse.mat
+  uploadId: 309215

@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: f35afd626407c3a4ba938fef8f346d98
+timeCreated: 1501438862
+licenseType: Store
+NativeFormatImporter:
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 96851
+  packageName: Locker Room
+  packageVersion: 1.1
+  assetPath: Assets/LockerRoom/Assets/Materials/BenchMat.mat
+  uploadId: 309215

@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: b2148c3ea1098d842a9a0e73c2239c14
+timeCreated: 1501426130
+licenseType: Store
+NativeFormatImporter:
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 96851
+  packageName: Locker Room
+  packageVersion: 1.1
+  assetPath: Assets/LockerRoom/Materials/BlueTiles.mat
+  uploadId: 309215

@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 4a0b742b4fe9bb64cbc13be3e62922fb
+timeCreated: 1501426499
+licenseType: Store
+NativeFormatImporter:
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 96851
+  packageName: Locker Room
+  packageVersion: 1.1
+  assetPath: Assets/LockerRoom/Prefabs/Wall.prefab
+  uploadId: 309215

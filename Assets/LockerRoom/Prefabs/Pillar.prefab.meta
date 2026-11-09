@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: a5debdbca76186c4a8d9c7634462d6d1
+timeCreated: 1501426502
+licenseType: Store
+NativeFormatImporter:
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 96851
+  packageName: Locker Room
+  packageVersion: 1.1
+  assetPath: Assets/LockerRoom/Prefabs/Pillar.prefab
+  uploadId: 309215

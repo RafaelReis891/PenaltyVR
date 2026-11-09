@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: 3ef420523e5ee19458f44cb921da43b7
+timeCreated: 1514395161
+licenseType: Store
+NativeFormatImporter:
+  mainObjectFileID: -1
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 96851
+  packageName: Locker Room
+  packageVersion: 1.1
+  assetPath: Assets/LockerRoom/Saves/Realistic_High Profile.asset
+  uploadId: 309215

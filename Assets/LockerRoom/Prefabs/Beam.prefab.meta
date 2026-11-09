@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 4aa88220719031a4fad93b9baeda0951
+timeCreated: 1501426500
+licenseType: Store
+NativeFormatImporter:
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 96851
+  packageName: Locker Room
+  packageVersion: 1.1
+  assetPath: Assets/LockerRoom/Prefabs/Beam.prefab
+  uploadId: 309215

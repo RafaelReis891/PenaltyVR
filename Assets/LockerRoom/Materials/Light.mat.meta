@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 105437bbcbb60754b978c30f9e17c019
+timeCreated: 1501439516
+licenseType: Store
+NativeFormatImporter:
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 96851
+  packageName: Locker Room
+  packageVersion: 1.1
+  assetPath: Assets/LockerRoom/Materials/Light.mat
+  uploadId: 309215

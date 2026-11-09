@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: fdb33bcd38a0cc34abeb94e848817002
+timeCreated: 1501438861
+licenseType: Store
+NativeFormatImporter:
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 96851
+  packageName: Locker Room
+  packageVersion: 1.1
+  assetPath: Assets/LockerRoom/Assets/Materials/Locker_B001Mat.mat
+  uploadId: 309215

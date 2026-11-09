@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 24503cdfa54bf8e418fe07cda3d21252
+timeCreated: 1501445578
+licenseType: Store
+NativeFormatImporter:
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 96851
+  packageName: Locker Room
+  packageVersion: 1.1
+  assetPath: Assets/LockerRoom/Prefabs/CealingLamp.prefab
+  uploadId: 309215

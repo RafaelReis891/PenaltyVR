@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 17142e2d17035034babd8588d4d5bfb5
+timeCreated: 1501445583
+licenseType: Store
+NativeFormatImporter:
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 96851
+  packageName: Locker Room
+  packageVersion: 1.1
+  assetPath: Assets/LockerRoom/Prefabs/Locker_LargeDoors.prefab
+  uploadId: 309215

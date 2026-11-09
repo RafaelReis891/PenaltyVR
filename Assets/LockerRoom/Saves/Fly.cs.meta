@@ -1,0 +1,18 @@
+fileFormatVersion: 2
+guid: 8ce5b20b9c61c8c499ae7b9ca5e4be35
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences: []
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 96851
+  packageName: Locker Room
+  packageVersion: 1.1
+  assetPath: Assets/LockerRoom/Saves/Fly.cs
+  uploadId: 309215

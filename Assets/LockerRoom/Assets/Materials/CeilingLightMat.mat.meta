@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 73e4a68b80661d649b630595d90645aa
+timeCreated: 1501438861
+licenseType: Store
+NativeFormatImporter:
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 96851
+  packageName: Locker Room
+  packageVersion: 1.1
+  assetPath: Assets/LockerRoom/Assets/Materials/CeilingLightMat.mat
+  uploadId: 309215

@@ -4,21 +4,35 @@ using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
 
-// Copia os materiais dos renderers do "Locker" para os renderers correspondentes do "Locker_bigdoor_v2".
+// Copia os materiais dos renderers do "Locker" para os renderers correspondentes
+// do Locker_bigdoor_v2 ou Locker_bigdoor_v3.
 // Correspondencia: 1) mesmo caminho na hierarquia, 2) mesmo nome de objeto, 3) mesma mesh (nome).
 public static class CopiarMateriaisLocker
 {
     const string Origem = "Locker";
-    const string Destino = "Locker_bigdoor_v2";
 
     [MenuItem("Tools/Materiais/Copiar Materiais Locker -> Locker_bigdoor_v2")]
-    static void Copiar()
+    static void CopiarV2()
+    {
+        CopiarPara("Locker_bigdoor_v2");
+    }
+
+    [MenuItem("Tools/Materiais/Copiar Materiais Locker -> Locker_bigdoor_v3")]
+    static void CopiarV3()
+    {
+        CopiarPara("Locker_bigdoor_v3");
+    }
+
+    static void CopiarPara(string destino)
     {
         var src = GameObject.Find(Origem);
-        var dst = GameObject.Find(Destino);
+        var dst = GameObject.Find(destino);
         if (src == null || dst == null)
         {
-            EditorUtility.DisplayDialog("Copiar Materiais", "Nao achei '" + Origem + "' ou '" + Destino + "' ativos na cena aberta.", "OK");
+            EditorUtility.DisplayDialog(
+                "Copiar Materiais",
+                "Nao achei '" + Origem + "' ou '" + destino + "' ativos na cena aberta.",
+                "OK");
             return;
         }
 
@@ -56,10 +70,13 @@ public static class CopiarMateriaisLocker
         }
 
         EditorSceneManager.MarkSceneDirty(dst.scene);
-        Debug.Log("[CopiarMateriaisLocker] " + ok + " renderers copiados:\n" + log);
+        Debug.Log("[CopiarMateriaisLocker] " + destino + ": " + ok + " renderers copiados:\n" + log);
         if (semPar.Count > 0)
-            Debug.LogWarning("[CopiarMateriaisLocker] Sem correspondente (" + semPar.Count + "):\n" + string.Join("\n", semPar));
-        EditorUtility.DisplayDialog("Copiar Materiais", ok + " renderers copiados. Sem correspondente: " + semPar.Count + ".\nVeja o Console e salve a cena (Ctrl+S).", "OK");
+            Debug.LogWarning("[CopiarMateriaisLocker] " + destino + " sem correspondente (" + semPar.Count + "):\n" + string.Join("\n", semPar));
+        EditorUtility.DisplayDialog(
+            "Copiar Materiais",
+            destino + ": " + ok + " renderers copiados. Sem correspondente: " + semPar.Count + ".\nVeja o Console e salve a cena (Ctrl+S).",
+            "OK");
     }
 
     static string NomeMesh(Renderer r)

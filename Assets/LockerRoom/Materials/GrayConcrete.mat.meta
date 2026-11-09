@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 666eb72513c34de478ab2816354af212
+timeCreated: 1501426130
+licenseType: Store
+NativeFormatImporter:
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 96851
+  packageName: Locker Room
+  packageVersion: 1.1
+  assetPath: Assets/LockerRoom/Materials/GrayConcrete.mat
+  uploadId: 309215

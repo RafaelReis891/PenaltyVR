@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: c8533090e80b260498c9400c19bfadf8
+timeCreated: 1501439051
+licenseType: Store
+NativeFormatImporter:
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 96851
+  packageName: Locker Room
+  packageVersion: 1.1
+  assetPath: Assets/LockerRoom/Assets/Materials/lambert1.mat
+  uploadId: 309215

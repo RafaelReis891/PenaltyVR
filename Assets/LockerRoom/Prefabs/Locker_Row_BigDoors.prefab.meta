@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 1f086d2b28fc6144eb766518bc789e42
+timeCreated: 1501445576
+licenseType: Store
+NativeFormatImporter:
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 96851
+  packageName: Locker Room
+  packageVersion: 1.1
+  assetPath: Assets/LockerRoom/Prefabs/Locker_Row_BigDoors.prefab
+  uploadId: 309215

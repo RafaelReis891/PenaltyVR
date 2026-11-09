@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 3cf55e033e4e4b442a2f1a73cf47cdc7
+timeCreated: 1501439238
+licenseType: Store
+NativeFormatImporter:
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 96851
+  packageName: Locker Room
+  packageVersion: 1.1
+  assetPath: Assets/LockerRoom/Assets/Materials/EthanBodyMat.mat
+  uploadId: 309215

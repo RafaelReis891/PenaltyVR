@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 3ca4bd08915b3c04d9256bc3ab8d69b6
+timeCreated: 1501445581
+licenseType: Store
+NativeFormatImporter:
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 96851
+  packageName: Locker Room
+  packageVersion: 1.1
+  assetPath: Assets/LockerRoom/Prefabs/Bench.prefab
+  uploadId: 309215

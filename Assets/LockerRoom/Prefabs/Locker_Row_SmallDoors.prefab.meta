@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: bdc58a24dd8c5fa478030e25c0b66bb4
+timeCreated: 1501445574
+licenseType: Store
+NativeFormatImporter:
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 96851
+  packageName: Locker Room
+  packageVersion: 1.1
+  assetPath: Assets/LockerRoom/Prefabs/Locker_Row_SmallDoors.prefab
+  uploadId: 309215

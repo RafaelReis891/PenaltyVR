@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: bb3bc74db3743904e9b99f3785f4f8ad
+timeCreated: 1501427893
+licenseType: Store
+DefaultImporter:
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 96851
+  packageName: Locker Room
+  packageVersion: 1.1
+  assetPath: Assets/LockerRoom/Saves/Scene.unity
+  uploadId: 309215

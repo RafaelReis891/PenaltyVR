@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 2861c44d9c49c3f4085e0c6c217f208d
+timeCreated: 1501426503
+licenseType: Store
+NativeFormatImporter:
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 96851
+  packageName: Locker Room
+  packageVersion: 1.1
+  assetPath: Assets/LockerRoom/Prefabs/Cealing.prefab
+  uploadId: 309215

@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 7e81f38b8be39004a830a1f18db39aeb
+timeCreated: 1501438862
+licenseType: Store
+NativeFormatImporter:
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 96851
+  packageName: Locker Room
+  packageVersion: 1.1
+  assetPath: Assets/LockerRoom/Assets/Materials/Locker_A_Door002Mat.mat
+  uploadId: 309215

@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 6a3ca020a6cfa5146a7294406f80ba17
+timeCreated: 1501426130
+licenseType: Store
+NativeFormatImporter:
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 96851
+  packageName: Locker Room
+  packageVersion: 1.1
+  assetPath: Assets/LockerRoom/Materials/WhiteTiles.mat
+  uploadId: 309215

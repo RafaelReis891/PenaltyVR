@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: dd40f1a5cff070f40ae81097680a6ff8
+timeCreated: 1501426217
+licenseType: Store
+NativeFormatImporter:
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 96851
+  packageName: Locker Room
+  packageVersion: 1.1
+  assetPath: Assets/LockerRoom/Assets/Materials/ConcreteFloor_diffuse.mat
+  uploadId: 309215
