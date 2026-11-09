@@ -109,3 +109,17 @@ InitTestScene*.unity*
 /[Aa]ssets/[Ss]ceneDependencyCache*
 Assets/Interlagos/interlagos 1.obj
 Assets/Interlagos/interlagos 1.obj.meta
+
+# --- Local backups (do not commit) ---
+/_Backup_Deletados/
+/_Backup_Deletados.meta
+
+# --- Stadium Creator 2 Data (large; Rafael passes separately, too big for GitHub) ---
+# Entire Data folder (~119MB locally). CrowdCharacterLibrary.asset alone is ~113MB
+# (GitHub hard limit 100MB). Other clones will miss these; scenes may show Missing.
+/Assets/Stadium Creator 2/Data/
+/Assets/Stadium Creator 2/Data.meta
+# Data.zip (~60MB) was removed locally; keep ignored so it is not re-added.
+/Assets/Stadium Creator 2/Data.zip
+/Assets/Stadium Creator 2/Data.zip.meta
+
