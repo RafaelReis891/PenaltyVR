@@ -1196,10 +1196,10 @@ MonoBehaviour:
   - {fileID: 3588802062979407146}
   - {fileID: 2722584283277215993}
   - {fileID: -4133440054692333627}
-  - {fileID: 6946915205353488341}
+  - {fileID: 8695829349402024275}
   - {fileID: -6002248426938650830}
   - {fileID: 7669573847212477461}
-  - {fileID: -713842229228908437}
+  - {fileID: -10078010949529432}
   - {fileID: 7903531860489203786}
   - {fileID: 552431725768141944}
   - {fileID: -8406945805967035521}
@@ -1520,7 +1520,7 @@ MonoBehaviour:
   m_Name: AndroidXRPerformanceMetrics Android
   m_EditorClassIdentifier: Unity.XR.AndroidOpenXR::UnityEngine.XR.OpenXR.Features.Android.AndroidXRPerformanceMetrics
   m_enabled: 0
-  nameUi: Android XR Performance Metrics
+  nameUi: 'Android XR: Performance Metrics'
   version: 0.1.0
   featureIdInternal: com.unity.openxr.feature.androidxr-performance-metrics
   openxrExtensionStrings: XR_ANDROID_performance_metrics

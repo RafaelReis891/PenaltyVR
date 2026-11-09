@@ -7,6 +7,8 @@ using UnityEngine.SceneManagement;
 public class QuestFootKick : MonoBehaviour
 {
 	public AudioSource source;
+	public float linearVelocity;
+	private Rigidbody rb;
 
 	[Header("Configuração do chute")]
 	public float extraForce = 5f;
@@ -111,6 +113,8 @@ public class QuestFootKick : MonoBehaviour
 		if (balls == null)
 			balls = new List<GameObject>();
 
+		rb = GetComponent<Rigidbody>();
+
 		foreach (GameObject ball in balls)
 		{
 			if (ball != null)
@@ -130,6 +134,8 @@ public class QuestFootKick : MonoBehaviour
 	{
 		if (finished)
 			return;
+
+		linearVelocity = rb.linearVelocity.magnitude * 3.6f;
 
 		UpdatePendingBalls();
 
@@ -326,7 +332,8 @@ public class QuestFootKick : MonoBehaviour
 	// --------------------------------------------------
 
 	void FixedUpdate()
-	{
+	{		
+
 		if (curvedBall == null)
 			return;
 
