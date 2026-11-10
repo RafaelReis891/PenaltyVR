@@ -51,8 +51,22 @@ public class FalaCaminho
 // Este componente so guarda configuracao e desenha o caminho (Gizmos). Nao roda nada no Play.
 public class CaminhoCinematica : MonoBehaviour
 {
+    [Header("Tempo por parte (parte 1: P0 ate a escada / parte 2: depois da escada ate a marca)")]
+    [Tooltip("Ligado: voce escolhe quantos segundos dura a parte 1 (do P0 ate o comeco da escada) e a parte 2 (do fim da escada ate parar na marca). A escada continua na velocidade de hoje. Tem prioridade sobre a 'Duracao total'.")]
+    public bool usarTempoPorParte = false;
+    [Tooltip("Segundos do P0 ate o comeco da escada (vestiario). Maior = ela anda mais devagar. Com o 'Tempo por parte' desligado, aqui aparece o tempo atual (preenchido no Montar).")]
+    [Min(0f)] public float tempoParte1 = 0f;
+    [Tooltip("Segundos do fim da escada ate parar no ultimo ponto (marca do penalti). Com o 'Tempo por parte' desligado, aqui aparece o tempo atual (preenchido no Montar).")]
+    [Min(0f)] public float tempoParte2 = 0f;
+    [Tooltip("Metros de transicao suave da velocidade entre cada parte e a escada (evita tranco).")]
+    [Min(0f)] public float transicaoVelocidade = 0.8f;
+
+    // Preenchidos pelo Montar (so leitura; aparecem no quadro de tempos no topo do Inspector).
+    [HideInInspector] public float infoTempoParte1, infoTempoEscada, infoTempoParte2, infoTempoTotal;
+    [HideInInspector] public float fatorGizmoParte1 = 1f, fatorGizmoParte2 = 1f;
+
     [Header("Duracao total da caminhada (do inicio ate parar no ultimo ponto)")]
-    [Tooltip("Se ligado, escala todas as velocidades (andar, escada, costas) para a caminhada durar exatamente 'duracaoTotalCaminhada'.")]
+    [Tooltip("Se ligado, escala todas as velocidades (andar, escada, costas) para a caminhada durar exatamente 'duracaoTotalCaminhada'. Com o 'Tempo por parte' ligado, isto so define a velocidade da escada.")]
     public bool usarDuracaoTotal = true;
     [Range(3f, 60f)] public float duracaoTotalCaminhada = 15f;
     [Tooltip("Acelera/desacelera os clips (timeScale na Timeline) para os pes acompanharem a velocidade.")]
@@ -192,12 +206,21 @@ public class CaminhoCinematica : MonoBehaviour
     // Distancia ao longo do caminho do marcador (segundos convertidos com 'velocidade' sem escala: e so para o gizmo).
     public float DistanciaMarcadorAprox(MarcadorCaminho m)
     {
-        float metros = m.emSegundos ? m.deslocamento * velocidade * fatorGizmo : m.deslocamento;
+        float metros = m.emSegundos ? m.deslocamento * velocidade * FatorGizmoDoPonto(m.ponto) : m.deslocamento;
         return Mathf.Clamp(DistanciaDoPonto(m.ponto) + metros, 0f, ComprimentoTotal());
     }
 
     // Preenchido pelo Montar (fator de velocidade da duracao total) para o gizmo de marcadores em segundos ficar certo.
     [HideInInspector] public float fatorGizmo = 1f;
+
+    // Fator de velocidade da parte onde o ponto esta (para o gizmo dos marcadores em segundos).
+    public float FatorGizmoDoPonto(int ponto)
+    {
+        if (!usarTempoPorParte) return fatorGizmo;
+        if (ponto < pontoInicioEscada) return fatorGizmoParte1;
+        if (ponto >= pontoFimEscada) return fatorGizmoParte2;
+        return fatorGizmo;
+    }
 
     public float ProjetarNoCaminho(Vector3 pos)
     {

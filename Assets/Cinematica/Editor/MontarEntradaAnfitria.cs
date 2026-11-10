@@ -170,13 +170,66 @@ public static class MontarEntradaAnfitria
                 if (Mathf.Abs(tr.duracao - alvo) < 0.02f) break;
             }
         }
-        if (Mathf.Abs(caminho.fatorGizmo - fator) > 0.001f) { caminho.fatorGizmo = fator; EditorUtility.SetDirty(caminho); }
+        // Tempo por parte: a escada fica com a velocidade acima (a de hoje); parte 1 (P0 -> escada) e parte 2 (escada -> marca)
+        // tem a velocidade ajustada para durar o tempo pedido. Itera porque aceleracao, freio e marcadores em segundos nao sao lineares.
+        float fator1 = fator, fator2 = fator;
+        bool porParte = false;
+        bool temEscadaTr = tr.tEscadaFim > tr.tEscadaIni + 0.01f;
+        if (temEscadaTr)
+        {
+            float t1Atual = Mathf.Round(tr.tEscadaIni * 100f) / 100f;
+            float t2Atual = Mathf.Round((tr.duracao - tr.tEscadaFim) * 100f) / 100f;
+            bool preencher1 = !caminho.usarTempoPorParte || caminho.tempoParte1 <= 0.01f;
+            bool preencher2 = !caminho.usarTempoPorParte || caminho.tempoParte2 <= 0.01f;
+            if ((preencher1 && Mathf.Abs(caminho.tempoParte1 - t1Atual) > 0.001f) || (preencher2 && Mathf.Abs(caminho.tempoParte2 - t2Atual) > 0.001f))
+            {
+                Undo.RecordObject(caminho, "Tempo por parte");
+                if (preencher1) caminho.tempoParte1 = t1Atual;
+                if (preencher2) caminho.tempoParte2 = t2Atual;
+                EditorUtility.SetDirty(caminho);
+            }
+        }
+        if (caminho.usarTempoPorParte)
+        {
+            if (!temEscadaTr)
+                Debug.LogWarning("[Cinematica] 'Tempo por parte' precisa da escada (pontoInicioEscada antes do pontoFimEscada). Usei a velocidade normal.");
+            else
+            {
+                porParte = true;
+                float alvo1 = Mathf.Max(0.3f, caminho.tempoParte1), alvo2 = Mathf.Max(0.3f, caminho.tempoParte2);
+                for (int it = 0; it < 15; it++)
+                {
+                    float d1 = tr.tEscadaIni, d2 = tr.duracao - tr.tEscadaFim;
+                    if (Mathf.Abs(d1 - alvo1) < 0.005f && Mathf.Abs(d2 - alvo2) < 0.005f) break;
+                    if (d1 > 0.01f) fator1 = Mathf.Clamp(fator1 * d1 / alvo1, 0.05f, 20f);
+                    if (d2 > 0.01f) fator2 = Mathf.Clamp(fator2 * d2 / alvo2, 0.05f, 20f);
+                    tr = CalcularTrajeto(caminho, pontos, fator, fator1, fator2);
+                }
+                float e1 = tr.tEscadaIni - alvo1, e2 = (tr.duracao - tr.tEscadaFim) - alvo2;
+                if (Mathf.Abs(e1) > 0.05f || Mathf.Abs(e2) > 0.05f)
+                    Debug.LogWarning("[Cinematica] Tempo por parte: nao deu para bater exato (parte 1 " + tr.tEscadaIni.ToString("0.00") + " s, parte 2 " +
+                                     (tr.duracao - tr.tEscadaFim).ToString("0.00") + " s). Tempo muito curto ou muito longo para o caminho.");
+            }
+        }
+        if (Mathf.Abs(caminho.fatorGizmo - fator) > 0.001f || Mathf.Abs(caminho.fatorGizmoParte1 - fator1) > 0.001f || Mathf.Abs(caminho.fatorGizmoParte2 - fator2) > 0.001f)
+        { caminho.fatorGizmo = fator; caminho.fatorGizmoParte1 = fator1; caminho.fatorGizmoParte2 = fator2; EditorUtility.SetDirty(caminho); }
+        {
+            float i1 = temEscadaTr ? tr.tEscadaIni : tr.duracao, iE = temEscadaTr ? tr.tEscadaFim - tr.tEscadaIni : 0f, i2 = temEscadaTr ? tr.duracao - tr.tEscadaFim : 0f;
+            if (Mathf.Abs(caminho.infoTempoParte1 - i1) > 0.001f || Mathf.Abs(caminho.infoTempoEscada - iE) > 0.001f ||
+                Mathf.Abs(caminho.infoTempoParte2 - i2) > 0.001f || Mathf.Abs(caminho.infoTempoTotal - tr.duracao) > 0.001f)
+            {
+                caminho.infoTempoParte1 = i1; caminho.infoTempoEscada = iE; caminho.infoTempoParte2 = i2; caminho.infoTempoTotal = tr.duracao;
+                EditorUtility.SetDirty(caminho);
+            }
+        }
         foreach (var av in tr.avisos) Debug.LogWarning("[Cinematica] " + av);
         float lim = Mathf.Max(1f, caminho.limiteTimeScale);
         Func<float, double> escalaClip = (x) => caminho.ajustarVelocidadeClips ? Mathf.Clamp(x, 1f / lim, lim) : 1.0;
         double tsAndar = escalaClip(fator * caminho.velocidade / vNatAndar);
         double tsCostas = escalaClip(fator * caminho.velocidadeCostas / vNatAndar);
         double tsEscada = escalaClip(fator * caminho.velocidadeEscada / vNatEscada);
+        double tsAndar1 = escalaClip(fator1 * caminho.velocidade / vNatAndar);
+        double tsAndar2 = escalaClip(fator2 * caminho.velocidade / vNatAndar);
 
         // Gera os clips de Transform (pai da Anfitria e camera)
         AnimationClip clipCaminho = CarregarOuCriarClip(CLIP_CAMINHO);
@@ -219,7 +272,24 @@ public static class MontarEntradaAnfitria
         // 2) Track do corpo: Walking em loop
         var trkCorpo = timeline.CreateTrack<AnimationTrack>(null, PREFIXO + "Anfitria_Corpo");
         ConfigurarTrack(trkCorpo);
-        AddClip(trkCorpo, walk, 0, tChegada + 0.6, "Andar (frente)", true, true).timeScale = tsAndar;
+        double tCorteAndar = -1;
+        if (porParte && escada != null && tsAndar1 != tsAndar2)
+        {
+            double blE = Mathf.Max(0.05f, caminho.duracaoBlendEscada);
+            if (tr.tEscadaFim - tr.tEscadaIni > blE * 2 + 0.2) tCorteAndar = tInicio + (tr.tEscadaIni + tr.tEscadaFim) * 0.5;
+        }
+        if (tCorteAndar > 0)
+        {
+            // a troca de timeScale fica no meio da escada, onde a animacao de subir cobre o corpo todo (nao aparece)
+            AddClip(trkCorpo, walk, 0, tCorteAndar, "Andar (frente) parte 1", true, true).timeScale = tsAndar1;
+            AddClip(trkCorpo, walk, tCorteAndar, tChegada + 0.6 - tCorteAndar, "Andar (frente) parte 2", true, true).timeScale = tsAndar2;
+        }
+        else
+        {
+            double tsUnico = !porParte ? tsAndar :
+                (tsAndar1 * tr.tEscadaIni + tsAndar2 * (tr.duracao - tr.tEscadaIni)) / Math.Max(0.01, tr.duracao);
+            AddClip(trkCorpo, walk, 0, tChegada + 0.6, "Andar (frente)", true, true).timeScale = tsUnico;
+        }
         director.SetGenericBinding(trkCorpo, anfAnimator);
 
         // 3) Overrides (com ease = transicao suave):
@@ -233,7 +303,8 @@ public static class MontarEntradaAnfitria
         {
             double ini = tc.desdeInicio ? 0.0 : tInicio + tc.tIni - vir * 0.5;
             double fim = tInicio + tc.tFim + vir * 0.5;
-            pedacos.Add(new object[] { ini, fim, costas, "De costas (" + tc.nome + ")", tsCostas, tc.desdeInicio ? 0.0 : vir, vir });
+            double tsC = porParte ? escalaClip(tr.fatorParte((tc.sIni + tc.sFim) * 0.5f) * caminho.velocidadeCostas / vNatAndar) : tsCostas;
+            pedacos.Add(new object[] { ini, fim, costas, "De costas (" + tc.nome + ")", tsC, tc.desdeInicio ? 0.0 : vir, vir });
         }
         if (escada != null && tr.tEscadaFim > tr.tEscadaIni + 0.05f)
         {
@@ -325,6 +396,9 @@ public static class MontarEntradaAnfitria
             "Chega na marca: " + tChegada.ToString("0.0") + " s (caminho de " + tr.comprimento.ToString("0") + " m)\n" +
             "Duracao: " + tr.duracao.ToString("0.0") + " s (natural " + duracaoNatural.ToString("0.0") + " s, velocidades x" + fator.ToString("0.00") +
             ", media " + (tr.comprimento / Mathf.Max(0.01f, tr.duracao)).ToString("0.0") + " m/s, pico andar " + (caminho.velocidade * fator).ToString("0.0") + " m/s)\n" +
+            (porParte ? "Tempo por parte: parte 1 " + tr.tEscadaIni.ToString("0.0") + " s (velocidades x" + fator1.ToString("0.00") + "), escada " +
+                        (tr.tEscadaFim - tr.tEscadaIni).ToString("0.0") + " s (x" + fator.ToString("0.00") + "), parte 2 " + (tr.duracao - tr.tEscadaFim).ToString("0.0") +
+                        " s (x" + fator2.ToString("0.00") + ")\nTimeScale andar: parte 1 " + tsAndar1.ToString("0.00") + ", parte 2 " + tsAndar2.ToString("0.00") + "\n" : "") +
             "TimeScale clips: andar " + tsAndar.ToString("0.00") + ", costas " + tsCostas.ToString("0.00") + ", escada " + tsEscada.ToString("0.00") + "\n\n" +
             msgCam + msgDist + msgSinal + msgTorcida + msgFalas +
             "Confira tambem as Activation Tracks (Locker/Porta ~18-22 s), que eram do 'voo' antigo.\n\n" +
@@ -460,6 +534,7 @@ public static class MontarEntradaAnfitria
         public Func<MarcadorCaminho, float> sMarcador;
         public Func<int, float> sPonto;
         public int nPontos;
+        public Func<float, float> fatorParte;   // fator de velocidade da parte (sem a transicao) na distancia s
     }
 
     class TrechoResolvido
@@ -470,6 +545,12 @@ public static class MontarEntradaAnfitria
     }
 
     static Trajeto CalcularTrajeto(CaminhoCinematica c, List<Transform> pontos, float fatorVel)
+    {
+        return CalcularTrajeto(c, pontos, fatorVel, fatorVel, fatorVel);
+    }
+
+    // fatorVel = escada (e tudo, se fator1 e fator2 forem iguais a ele); fator1 = P0 ate a escada; fator2 = depois da escada.
+    static Trajeto CalcularTrajeto(CaminhoCinematica c, List<Transform> pontos, float fatorVel, float fator1, float fator2)
     {
         var tr = new Trajeto();
         var orig = pontos.Select(p => p.position).ToList();
@@ -524,8 +605,29 @@ public static class MontarEntradaAnfitria
         bool temEscada = sEscIni >= 0 && sEscFim > sEscIni;
         float vir = Mathf.Max(0.1f, c.duracaoVirada);
 
+        // Fator de velocidade por parte. 'fatorEm' tem transicao suave (transicaoVelocidade metros) do lado da parte, encostado na escada.
+        Func<float, float> fatorParte = (s) => !temEscada ? fatorVel : (s < sEscIni ? fator1 : (s >= sEscFim ? fator2 : fatorVel));
+        float bT1 = temEscada ? Mathf.Min(Mathf.Max(0f, c.transicaoVelocidade), 0.45f * sEscIni) : 0f;
+        float bT2 = temEscada ? Mathf.Min(Mathf.Max(0f, c.transicaoVelocidade), 0.45f * (L - sEscFim)) : 0f;
+        Func<float, float> fatorEm = (s) =>
+        {
+            if (!temEscada) return fatorVel;
+            if (s < sEscIni)
+            {
+                if (bT1 > 0.01f && s > sEscIni - bT1) return Mathf.Lerp(fator1, fatorVel, Mathf.SmoothStep(0f, 1f, (s - (sEscIni - bT1)) / bT1));
+                return fator1;
+            }
+            if (s >= sEscFim)
+            {
+                if (bT2 > 0.01f && s < sEscFim + bT2) return Mathf.Lerp(fatorVel, fator2, Mathf.SmoothStep(0f, 1f, (s - sEscFim) / bT2));
+                return fator2;
+            }
+            return fatorVel;
+        };
+        tr.fatorParte = fatorParte;
+
         // Trechos de costas (marcadores) -> distancias no caminho
-        Func<float, float> velBase = (s) => (temEscada && s >= sEscIni && s < sEscFim ? c.velocidadeEscada : c.velocidade) * fatorVel;
+        Func<float, float> velBase = (s) => (temEscada && s >= sEscIni && s < sEscFim ? c.velocidadeEscada : c.velocidade) * fatorParte(s);
         Func<MarcadorCaminho, float> sMarcador = (m) =>
         {
             float b = sPonto(Mathf.Clamp(m.ponto, 0, n - 1));
@@ -543,7 +645,7 @@ public static class MontarEntradaAnfitria
                 // escada sempre de frente: corta o trecho
                 if (temEscada && r.sIni < sEscFim && r.sFim > sEscIni)
                 {
-                    float margem = vir * c.velocidade * fatorVel * 0.6f + 0.3f;
+                    float margem = vir * c.velocidade * (r.sIni < sEscIni ? fator1 : fator2) * 0.6f + 0.3f;
                     if (r.sIni < sEscIni) r.sFim = Mathf.Min(r.sFim, sEscIni - margem);
                     else r.sIni = Mathf.Max(r.sIni, sEscFim + margem);
                     tr.avisos.Add("Trecho de costas '" + r.nome + "' encostava na escada e foi cortado (na escada ela fica de frente).");
@@ -567,7 +669,7 @@ public static class MontarEntradaAnfitria
             if (temEscada && s >= sEscIni && s < sEscFim) v = c.velocidadeEscada;
             if (deCostas(s)) v = Mathf.Min(v, c.velocidadeCostas);
             float f = Mathf.Clamp01(Mathf.Min(s, L - s) / Mathf.Max(0.01f, c.distanciaAceleracao));
-            return Mathf.Max(0.05f, v * fatorVel * Mathf.SmoothStep(0.3f, 1f, f));
+            return Mathf.Max(0.05f, v * fatorEm(s) * Mathf.SmoothStep(0.3f, 1f, f));
         };
 
         // 2) Integra tempo ao longo da distancia
@@ -1315,6 +1417,14 @@ public class CaminhoCinematicaEditor : Editor
     public override void OnInspectorGUI()
     {
         EditorGUILayout.HelpBox("Os filhos deste objeto sao os pontos do caminho (na ordem). Mova os pontos na Scene e clique no botao para refazer as tracks CINE_ da Timeline.", MessageType.Info);
+        var cc = (CaminhoCinematica)target;
+        if (cc != null && cc.infoTempoTotal > 0.01f)
+            EditorGUILayout.HelpBox("Tempos do ultimo Montar (so leitura):\n" +
+                "Parte 1 (P0 ate a escada): " + cc.infoTempoParte1.ToString("0.0") + " s\n" +
+                "Escada: " + cc.infoTempoEscada.ToString("0.0") + " s\n" +
+                "Parte 2 (escada ate a marca): " + cc.infoTempoParte2.ToString("0.0") + " s\n" +
+                "Total caminhando: " + cc.infoTempoTotal.ToString("0.0") + " s" +
+                (cc.usarTempoPorParte ? "" : "\nPara mudar cada parte: ligue 'Usar Tempo Por Parte' e mude 'Tempo Parte 1' / 'Tempo Parte 2'."), MessageType.None);
         DrawDefaultInspector();
         EditorGUILayout.Space();
         if (GUILayout.Button("Montar na Timeline", GUILayout.Height(30)))
@@ -1364,7 +1474,7 @@ public class CaminhoCinematicaEditor : Editor
         float metros = c.ProjetarNoCaminho(nova) - c.DistanciaDoPonto(idx);
         if (m.emSegundos)
         {
-            float v = Mathf.Max(0.05f, c.velocidade * c.fatorGizmo);
+            float v = Mathf.Max(0.05f, c.velocidade * c.FatorGizmoDoPonto(idx));
             m.deslocamento = Mathf.Round(metros / v * 100f) / 100f;
         }
         else m.deslocamento = Mathf.Round(metros * 100f) / 100f;
