@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: 5219f16a42058ac4c9a47e8044f8e273
+timeCreated: 1552137771
+licenseType: Store
+NativeFormatImporter:
+  mainObjectFileID: 100100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 141617
+  packageName: Football locker room - interior and props
+  packageVersion: 2.0
+  assetPath: Assets/Football locker room - interior and props/Models/Prefabs/light.prefab
+  uploadId: 617755

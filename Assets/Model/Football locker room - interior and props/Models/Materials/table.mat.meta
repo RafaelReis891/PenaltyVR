@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: 13c88d8d89d69a0488d6f4cfa6d76e1c
+timeCreated: 1552135269
+licenseType: Store
+NativeFormatImporter:
+  mainObjectFileID: 2100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 141617
+  packageName: Football locker room - interior and props
+  packageVersion: 2.0
+  assetPath: Assets/Football locker room - interior and props/Models/Materials/table.mat
+  uploadId: 617755

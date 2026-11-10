@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: f16f214c80b9bc6479f5e5b230f90229
+timeCreated: 1552135270
+licenseType: Store
+NativeFormatImporter:
+  mainObjectFileID: 2100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 141617
+  packageName: Football locker room - interior and props
+  packageVersion: 2.0
+  assetPath: Assets/Football locker room - interior and props/Models/Materials/foot_boot.mat
+  uploadId: 617755

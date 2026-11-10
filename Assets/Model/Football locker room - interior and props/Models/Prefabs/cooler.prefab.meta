@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: 7c4c1aa05cd107c4b944d1306443da7e
+timeCreated: 1552137201
+licenseType: Store
+NativeFormatImporter:
+  mainObjectFileID: 100100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 141617
+  packageName: Football locker room - interior and props
+  packageVersion: 2.0
+  assetPath: Assets/Football locker room - interior and props/Models/Prefabs/cooler.prefab
+  uploadId: 617755
