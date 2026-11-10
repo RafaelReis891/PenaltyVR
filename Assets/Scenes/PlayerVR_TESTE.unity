@@ -708,7 +708,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!4 &57818343
 Transform:
   m_ObjectHideFlags: 0
@@ -763,8 +763,8 @@ Light:
   m_Enabled: 1
   serializedVersion: 13
   m_Type: 2
-  m_Color: {r: 0.21687903, g: 0.82641506, b: 0, a: 1}
-  m_Intensity: 10
+  m_Color: {r: 1, g: 1, b: 1, a: 1}
+  m_Intensity: 4
   m_Range: 10
   m_SpotAngle: 30
   m_InnerSpotAngle: 21.80208
@@ -3891,7 +3891,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!4 &490739303
 Transform:
   m_ObjectHideFlags: 0
@@ -3946,8 +3946,8 @@ Light:
   m_Enabled: 1
   serializedVersion: 13
   m_Type: 2
-  m_Color: {r: 0.21687903, g: 0.82641506, b: 0, a: 1}
-  m_Intensity: 3
+  m_Color: {r: 1, g: 1, b: 1, a: 1}
+  m_Intensity: 4
   m_Range: 10
   m_SpotAngle: 30
   m_InnerSpotAngle: 21.80208
@@ -4342,7 +4342,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!4 &513600118
 Transform:
   m_ObjectHideFlags: 0
@@ -4397,8 +4397,8 @@ Light:
   m_Enabled: 1
   serializedVersion: 13
   m_Type: 2
-  m_Color: {r: 0.21687903, g: 0.82641506, b: 0, a: 1}
-  m_Intensity: 3
+  m_Color: {r: 1, g: 1, b: 1, a: 1}
+  m_Intensity: 4
   m_Range: 10
   m_SpotAngle: 30
   m_InnerSpotAngle: 21.80208
@@ -8643,10 +8643,10 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::CaminhoCinematica
   usarDuracaoTotal: 1
-  duracaoTotalCaminhada: 20
+  duracaoTotalCaminhada: 35
   ajustarVelocidadeClips: 1
   cadenciaAutomatica: 1
-  velocidadeNaturalAndar: 1.4
+  velocidadeNaturalAndar: 1.2
   limiteTimeScale: 2.5
   autoAtualizar: 1
   controlarTorcida: 1
@@ -8730,7 +8730,7 @@ MonoBehaviour:
   cameraGiroMax: 45
   cameraSuavizacao: 0.6
   moverSinalActivatePlayer: 1
-  fatorGizmo: 3.9602857
+  fatorGizmo: 2.3979483
 --- !u!4 &861636992
 Transform:
   m_ObjectHideFlags: 0
@@ -11724,8 +11724,8 @@ Light:
   m_Enabled: 1
   serializedVersion: 13
   m_Type: 2
-  m_Color: {r: 0.21687903, g: 0.82641506, b: 0, a: 1}
-  m_Intensity: 10
+  m_Color: {r: 1, g: 1, b: 1, a: 1}
+  m_Intensity: 4
   m_Range: 10
   m_SpotAngle: 30
   m_InnerSpotAngle: 21.80208
@@ -19338,15 +19338,15 @@ PlayableDirector:
     value: {fileID: 1100443588}
   - key: {fileID: 0}
     value: {fileID: 1938693751}
-  - key: {fileID: -8491834073279202828, guid: e9b28ea42dad7a349b15afe6816a548f, type: 2}
+  - key: {fileID: -1424054556232385852, guid: e9b28ea42dad7a349b15afe6816a548f, type: 2}
     value: {fileID: 707603998}
-  - key: {fileID: -8843283061956274952, guid: e9b28ea42dad7a349b15afe6816a548f, type: 2}
+  - key: {fileID: -5860617728559519005, guid: e9b28ea42dad7a349b15afe6816a548f, type: 2}
     value: {fileID: 614292453}
-  - key: {fileID: 7553860796339658173, guid: e9b28ea42dad7a349b15afe6816a548f, type: 2}
+  - key: {fileID: -7006842475298829583, guid: e9b28ea42dad7a349b15afe6816a548f, type: 2}
     value: {fileID: 942625176}
-  - key: {fileID: -4765376686248306287, guid: e9b28ea42dad7a349b15afe6816a548f, type: 2}
+  - key: {fileID: 4029548947187117019, guid: e9b28ea42dad7a349b15afe6816a548f, type: 2}
     value: {fileID: 1100443588}
-  - key: {fileID: 5651952096097691957, guid: e9b28ea42dad7a349b15afe6816a548f, type: 2}
+  - key: {fileID: -6775173731389252130, guid: e9b28ea42dad7a349b15afe6816a548f, type: 2}
     value: {fileID: 1938693751}
   m_ExposedReferences:
     m_References: []
@@ -20227,7 +20227,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!4 &1980064445
 Transform:
   m_ObjectHideFlags: 0
@@ -20282,8 +20282,8 @@ Light:
   m_Enabled: 1
   serializedVersion: 13
   m_Type: 2
-  m_Color: {r: 0.21687903, g: 0.82641506, b: 0, a: 1}
-  m_Intensity: 10
+  m_Color: {r: 1, g: 1, b: 1, a: 1}
+  m_Intensity: 4
   m_Range: 10
   m_SpotAngle: 30
   m_InnerSpotAngle: 21.80208
@@ -20955,7 +20955,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!4 &2119766173
 Transform:
   m_ObjectHideFlags: 0
@@ -21010,8 +21010,8 @@ Light:
   m_Enabled: 1
   serializedVersion: 13
   m_Type: 2
-  m_Color: {r: 0.21687903, g: 0.82641506, b: 0, a: 1}
-  m_Intensity: 10
+  m_Color: {r: 1, g: 1, b: 1, a: 1}
+  m_Intensity: 4
   m_Range: 10
   m_SpotAngle: 30
   m_InnerSpotAngle: 21.80208
