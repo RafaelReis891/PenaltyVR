@@ -1,60 +1,51 @@
-
 using System.Collections.Generic;
+using System.Threading.Tasks;
 using UnityEngine;
 using UnityEngine.Events;
-using UnityEngine.SceneManagement;
 
 public class QuestFootKick : MonoBehaviour
 {
+	public enum PlayerRole { Player1, Player2 }
+
+	[Header("Configuração do Jogador")]
+	[Tooltip("Defina no Inspector: Esta build é o Jogador 1 ou Jogador 2?")]
+	public PlayerRole myRole = PlayerRole.Player1;
+
+	[Tooltip("Nome que será exibido no painel Admin.")]
+	public string playerDisplayName = "Jogador 1";
+
 	public AudioSource source;
 	public float linearVelocity;
 	private Rigidbody rb;
+
+	[Header("Goleiro")]
+	public GoalKeeperActions goalKeeper;
 
 	[Header("Configuração do chute")]
 	public float extraForce = 5f;
 	public float upwardForce = 1.5f;
 
 	[Header("Turnos")]
-	[Min(1)]
-	public int shotsPerPlayer = 5;
-
-	[Min(1f)]
-	public float turnTime = 5f;
-
+	[Min(1)] public int shotsPerPlayer = 5;
 	public int currentBall;
 
 	private int playerShots;
 	private int opponentShots;
 
-	private float turnTimer;
-
-	private enum TurnState
-	{
-		PlayerTurn,
-		WaitingOpponent,
-		WaitingPlayer,
-		WaitingResults,
-		Finished
-	}
-
-	private TurnState turnState = TurnState.PlayerTurn;
+	private enum TurnState { WaitingRoom, WaitingOpponent, PlayerTurn, WaitingResults, Finished }
+	private TurnState turnState = TurnState.WaitingRoom;
 
 	[Header("Assistência de curva")]
 	public Transform goalCenter;
 	public float curveStrength = 3f;
 	public float maxCurveAcceleration = 5f;
 	public float curveDuration = 2f;
-
 	private Rigidbody curvedBall;
 	private float curveTimer;
 
-	[Header("Configuração do adversário")]
-	public float horizontalOffset = 2f;
-	public float verticalOffset = 1.5f;
-
 	[Header("Placar")]
-	public int playerGoals;
-	public int opponentGoals;
+	public int player1Goals;
+	public int player2Goals;
 
 	[Header("Eventos")]
 	public UnityEvent onPlayerGoal;
@@ -65,800 +56,564 @@ public class QuestFootKick : MonoBehaviour
 	public List<GameObject> balls;
 
 	[Header("Finalização dos chutes")]
-	[Min(0.1f)]
-	public float ballStopDuration = 1.25f;
+	[Min(0.1f)] public float ballStopDuration = 1.25f;
+	[Min(1f)] public float maxBallResolveTime = 5f;
+	[Min(0f)] public float stopVelocity = 0.15f;
 
-	[Min(1f)]
-	public float maxBallResolveTime = 12f;
+	private readonly HashSet<GameObject> scoredBalls = new HashSet<GameObject>();
+	private readonly HashSet<GameObject> pendingBalls = new HashSet<GameObject>();
+	private readonly Dictionary<GameObject, float> ballIdleTimers = new Dictionary<GameObject, float>();
+	private readonly Dictionary<GameObject, float> ballElapsedTimers = new Dictionary<GameObject, float>();
+	private readonly Dictionary<GameObject, Vector3> initialBallPositions = new Dictionary<GameObject, Vector3>();
+	private readonly Dictionary<GameObject, Quaternion> initialBallRotations = new Dictionary<GameObject, Quaternion>();
+	private readonly List<GameObject> ballsToRemove = new List<GameObject>();
 
-	[Min(0f)]
-	public float stopVelocity = 0.15f;
-
-	private enum ShotOwner
-	{
-		Player,
-		Opponent
-	}
-
-	// Autor de cada bola.
-	private readonly Dictionary<GameObject, ShotOwner> ballOwners =
-		new Dictionary<GameObject, ShotOwner>();
-
-	// Bolas que já marcaram gol.
-	private readonly HashSet<GameObject> scoredBalls =
-		new HashSet<GameObject>();
-
-	// Bolas que ainda precisam ter seu resultado resolvido.
-	private readonly HashSet<GameObject> pendingBalls =
-		new HashSet<GameObject>();
-
-	private readonly Dictionary<GameObject, float> ballIdleTimers =
-		new Dictionary<GameObject, float>();
-
-	private readonly Dictionary<GameObject, float> ballElapsedTimers =
-		new Dictionary<GameObject, float>();
-
-	private readonly List<GameObject> ballsToRemove =
-		new List<GameObject>();
-
+	private GameObject activeShotBall;
+	private bool shotInProgress;
+	private bool shotResultSent;
 	private bool finished;
-	private bool noMoreBalls;
+	private bool setupStarted;
 
-	// --------------------------------------------------
-	// INICIALIZAÇÃO
-	// --------------------------------------------------
+	private int lastPlayer1Score;
+	private int lastPlayer2Score;
+	private int lastProcessedTurn = -1;
+	private string lastRoomStatus = "";
+	private bool showSettingsMenu;
 
-	void Start()
+	private void Start()
 	{
-		if (balls == null)
-			balls = new List<GameObject>();
-
+		Debug.Log("[QuestFootKick] Iniciando. Papel configurado: " + myRole);
+		if (balls == null) balls = new List<GameObject>();
 		rb = GetComponent<Rigidbody>();
 
 		foreach (GameObject ball in balls)
 		{
-			if (ball != null)
-				ball.SetActive(false);
+			if (ball == null) continue;
+			initialBallPositions[ball] = ball.transform.position;
+			initialBallRotations[ball] = ball.transform.rotation;
+			Rigidbody ballRb = ball.GetComponent<Rigidbody>();
+			if (ballRb != null)
+			{
+				ballRb.linearVelocity = Vector3.zero;
+				ballRb.angularVelocity = Vector3.zero;
+				ballRb.isKinematic = true;
+			}
+			ball.SetActive(false);
+		}
+		currentBall = 0;
+
+		if (FirebaseManager.Instance == null)
+		{
+			Debug.LogError("[QuestFootKick] FirebaseManager não encontrado na cena.");
+			return;
 		}
 
-		currentBall = Mathf.Clamp(currentBall, 0, balls.Count);
+		string fixedId = myRole == PlayerRole.Player1 ? "Jogador1" : "Jogador2";
+		FirebaseManager.Instance.ConfigureIdentity(fixedId);
 
-		BeginPlayerTurn();
+		FirebaseManager.Instance.OnRoomUpdated += HandleRoomUpdated;
+		FirebaseManager.Instance.OnRoomJoined += OnSuccessfullyJoinedRoom;
+		FirebaseManager.Instance.OnFirebaseReady += OnFirebaseReadyToSetup;
+
+		if (FirebaseManager.Instance.IsInitialized && FirebaseManager.Instance.IsConnected)
+			OnFirebaseReadyToSetup();
+
+		if (FirebaseManager.Instance.IsInRoom && FirebaseManager.Instance.CurrentRoom != null)
+			HandleRoomUpdated(FirebaseManager.Instance.CurrentRoom);
 	}
 
-	// --------------------------------------------------
-	// UPDATE
-	// --------------------------------------------------
-
-	void Update()
+	private void OnDestroy()
 	{
-		if (finished)
-			return;
-
-		linearVelocity = rb.linearVelocity.magnitude * 3.6f;
-
-		UpdatePendingBalls();
-
-		if (finished)
-			return;
-
-		// Teste de chute pelo teclado.
-		if (turnState == TurnState.PlayerTurn &&
-			Input.GetKeyDown(KeyCode.Space))
+		if (FirebaseManager.Instance != null)
 		{
+			FirebaseManager.Instance.OnRoomUpdated -= HandleRoomUpdated;
+			FirebaseManager.Instance.OnRoomJoined -= OnSuccessfullyJoinedRoom;
+			FirebaseManager.Instance.OnFirebaseReady -= OnFirebaseReadyToSetup;
+		}
+	}
+
+	private async void OnFirebaseReadyToSetup()
+	{
+		if (setupStarted || FirebaseManager.Instance == null) return;
+		setupStarted = true;
+
+		try
+		{
+			string displayName = string.IsNullOrWhiteSpace(playerDisplayName)
+				? (myRole == PlayerRole.Player1 ? "Jogador 1" : "Jogador 2")
+				: playerDisplayName.Trim();
+
+			Debug.Log("[QuestFootKick] Entrando na sala como: " + displayName);
+			await FirebaseManager.Instance.JoinRoom(displayName);
+		}
+		catch (System.Exception ex)
+		{
+			Debug.LogError("[QuestFootKick] Falha no setup da sala: " + ex);
+		}
+	}
+
+	private void Update()
+	{
+		if (Input.GetKeyDown(KeyCode.F1))
+		{
+			showSettingsMenu = !showSettingsMenu;
+			Cursor.lockState = showSettingsMenu ? CursorLockMode.None : CursorLockMode.Locked;
+			Cursor.visible = showSettingsMenu;
+		}
+
+		if (rb != null) linearVelocity = rb.linearVelocity.magnitude * 3.6f;
+		if (!finished) UpdatePendingBalls();
+
+		if (!finished && turnState == TurnState.PlayerTurn && Input.GetKeyDown(KeyCode.Space))
 			SimularChuteAleatorio();
+	}
+
+	private void OnGUI()
+	{
+		if (!showSettingsMenu) return;
+		// (Mantido igual ao original, apenas removendo referências a Host/Guest se houver na UI)
+		float windowWidth = 400f;
+		float windowHeight = 250f;
+		float x = (Screen.width - windowWidth) / 2f;
+		float y = (Screen.height - windowHeight) / 2f;
+		bool alreadyJoined = FirebaseManager.Instance != null && FirebaseManager.Instance.IsInRoom;
+
+		GUI.color = new Color(0f, 0f, 0f, 0.88f);
+		GUI.DrawTexture(new Rect(x, y, windowWidth, windowHeight), Texture2D.whiteTexture);
+		GUI.color = Color.white;
+
+		GUIStyle titleStyle = new GUIStyle(GUI.skin.label) { fontSize = 20, fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter };
+		GUI.Label(new Rect(x, y + 15, windowWidth, 30), "CONFIGURAÇÃO FIXA DA BUILD", titleStyle);
+
+		GUIStyle subStyle = new GUIStyle(GUI.skin.label) { fontSize = 12, alignment = TextAnchor.MiddleCenter, wordWrap = true, normal = { textColor = new Color(0.75f, 0.75f, 0.75f) } };
+		GUI.Label(new Rect(x + 20, y + 45, windowWidth - 40, 35), alreadyJoined ? "Conectado como: " + FirebaseManager.Instance.PlayerId : "Papel definido no Inspector (My Role)", subStyle);
+
+		GUI.enabled = false;
+		GUIStyle btnStyle = new GUIStyle(GUI.skin.button) { fontSize = 16, fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter };
+		GUI.color = myRole == PlayerRole.Player1 ? new Color(0.2f, 0.8f, 0.2f) : new Color(0.3f, 0.3f, 0.3f);
+		btnStyle.normal.textColor = myRole == PlayerRole.Player1 ? Color.black : Color.white;
+		GUI.Button(new Rect(x + 40, y + 90f, 320f, 50f), "JOGADOR 1", btnStyle);
+
+		GUI.color = myRole == PlayerRole.Player2 ? new Color(0.2f, 0.7f, 0.9f) : new Color(0.3f, 0.3f, 0.3f);
+		btnStyle.normal.textColor = myRole == PlayerRole.Player2 ? Color.black : Color.white;
+		GUI.Button(new Rect(x + 40, y + 150f, 320f, 50f), "JOGADOR 2", btnStyle);
+
+		GUI.enabled = true;
+		GUI.color = new Color(0.9f, 0.9f, 0.9f);
+		btnStyle.normal.textColor = Color.black;
+		if (GUI.Button(new Rect(x + 40, y + 210f, 320f, 50f), "FECHAR", btnStyle))
+		{
+			showSettingsMenu = false;
+			Cursor.lockState = CursorLockMode.Locked;
+			Cursor.visible = false;
+		}
+		GUI.color = Color.white;
+	}
+
+	private void OnSuccessfullyJoinedRoom()
+	{
+		if (FirebaseManager.Instance == null) return;
+		Debug.Log("[QuestFootKick] Entrou na sala " + FirebaseManager.Instance.RoomCode + " como " + FirebaseManager.Instance.PlayerId + ".");
+	}
+
+	private void HandleRoomUpdated(FirebaseManager.RoomState room)
+	{
+		if (room == null || FirebaseManager.Instance == null) return;
+
+		bool startingFreshMatch = room.Status == "Playing" && lastRoomStatus == "Waiting" && room.TurnNumber == 0;
+
+		if ((lastRoomStatus == "Finished" && room.Status == "Waiting") || (finished && room.Status != "Finished") || startingFreshMatch)
+		{
+			Debug.Log("[FootballVR] Reset da partida detectado. Limpando estado local.");
+			ResetLocalMatch();
 		}
 
-		if (turnState == TurnState.WaitingResults)
+		if (finished && room.Status == "Finished")
 		{
-			if (pendingBalls.Count == 0)
-				FinishGame();
-
+			lastRoomStatus = room.Status;
 			return;
 		}
 
-		if (turnState == TurnState.WaitingOpponent ||
-			turnState == TurnState.WaitingPlayer)
-		{
-			turnTimer -= Time.deltaTime;
+		bool isPlayer1 = FirebaseManager.Instance.PlayerId == "Jogador1";
+		int newMyGoals = isPlayer1 ? room.Player1Score : room.Player2Score;
+		int newOpponentGoals = isPlayer1 ? room.Player2Score : room.Player1Score;
+		int oldMyGoals = isPlayer1 ? lastPlayer1Score : lastPlayer2Score;
+		int oldOpponentGoals = isPlayer1 ? lastPlayer2Score : lastPlayer1Score;
 
-			if (turnTimer <= 0f)
+		if (newMyGoals > oldMyGoals)
+		{
+			onPlayerGoal?.Invoke();
+			Debug.Log("<color=green>[FootballVR] GOL SEU!</color>");
+		}
+		if (newOpponentGoals > oldOpponentGoals)
+		{
+			onOpponentGoal?.Invoke();
+			Debug.Log("<color=red>[FootballVR] GOL DO ADVERSÁRIO!</color>");
+		}
+
+		player1Goals = room.Player1Score;
+		player2Goals = room.Player2Score;
+		lastPlayer1Score = room.Player1Score;
+		lastPlayer2Score = room.Player2Score;
+		shotsPerPlayer = Mathf.Max(1, room.ShotsPerPlayer);
+
+		if (isPlayer1)
+		{
+			playerShots = (room.TurnNumber + 1) / 2;
+			opponentShots = room.TurnNumber / 2;
+		}
+		else
+		{
+			playerShots = room.TurnNumber / 2;
+			opponentShots = (room.TurnNumber + 1) / 2;
+		}
+
+		playerShots = Mathf.Min(playerShots, shotsPerPlayer);
+		opponentShots = Mathf.Min(opponentShots, shotsPerPlayer);
+		currentBall = playerShots;
+
+		if (room.TurnNumber != lastProcessedTurn)
+		{
+			lastProcessedTurn = room.TurnNumber;
+			shotInProgress = false;
+			shotResultSent = false;
+			GameObject oldBall = activeShotBall;
+			activeShotBall = null;
+			if (oldBall != null)
 			{
-				if (turnState == TurnState.WaitingOpponent)
-				{
-					BeginOpponentTurn();
-				}
-				else
-				{
-					BeginPlayerTurn();
-				}
+				CancelInvoke(nameof(CleanupPreviousBall));
+				Invoke(nameof(CleanupPreviousBall), 3f);
 			}
 		}
+
+		lastRoomStatus = room.Status;
+
+		if (room.Status == "Finished")
+		{
+			FinishGame();
+			return;
+		}
+
+		if (room.Status != "Playing")
+		{
+			turnState = TurnState.WaitingRoom;
+			return;
+		}
+
+		if (!FirebaseManager.Instance.IsConnected)
+		{
+			turnState = TurnState.WaitingRoom;
+			return;
+		}
+
+		if (room.CurrentTurnPlayer == FirebaseManager.Instance.PlayerId)
+			BeginPlayerTurn();
+		else
+			turnState = TurnState.WaitingOpponent;
 	}
 
-	// --------------------------------------------------
-	// CONTROLE DAS BOLAS EM MOVIMENTO
-	// --------------------------------------------------
+	private void ResetLocalMatch()
+	{
+		finished = false;
+		turnState = TurnState.WaitingRoom;
+		player1Goals = 0;
+		player2Goals = 0;
+		playerShots = 0;
+		opponentShots = 0;
+		lastPlayer1Score = 0;
+		lastPlayer2Score = 0;
+		lastProcessedTurn = -1;
+		shotInProgress = false;
+		shotResultSent = false;
+		activeShotBall = null;
+		currentBall = 0;
+		CancelInvoke(nameof(CleanupPreviousBall));
+		if (goalKeeper != null) goalKeeper.ForceReset();
+		ResetAllBalls();
+	}
 
-	void UpdatePendingBalls()
+	private void ResetAllBalls()
+	{
+		foreach (GameObject ball in balls)
+		{
+			if (ball == null) continue;
+			Rigidbody ballRb = ball.GetComponent<Rigidbody>();
+			if (ballRb != null)
+			{
+				ballRb.linearVelocity = Vector3.zero;
+				ballRb.angularVelocity = Vector3.zero;
+				ballRb.isKinematic = true;
+			}
+			if (initialBallPositions.TryGetValue(ball, out Vector3 position)) ball.transform.position = position;
+			if (initialBallRotations.TryGetValue(ball, out Quaternion rotation)) ball.transform.rotation = rotation;
+			ball.SetActive(false);
+		}
+		activeShotBall = null;
+		shotInProgress = false;
+		shotResultSent = false;
+		pendingBalls.Clear();
+		scoredBalls.Clear();
+		ballIdleTimers.Clear();
+		ballElapsedTimers.Clear();
+		ballsToRemove.Clear();
+		curvedBall = null;
+		curveTimer = 0f;
+	}
+
+	private void CleanupPreviousBall()
+	{
+		for (int i = 0; i < balls.Count; i++)
+		{
+			GameObject ball = balls[i];
+			if (i == currentBall || ball == null || !ball.activeSelf) continue;
+			Rigidbody ballRb = ball.GetComponent<Rigidbody>();
+			if (ballRb != null)
+			{
+				ballRb.linearVelocity = Vector3.zero;
+				ballRb.angularVelocity = Vector3.zero;
+				ballRb.isKinematic = true;
+			}
+			if (initialBallPositions.TryGetValue(ball, out Vector3 position)) ball.transform.position = position;
+			if (initialBallRotations.TryGetValue(ball, out Quaternion rotation)) ball.transform.rotation = rotation;
+			ball.SetActive(false);
+			RemovePendingBall(ball);
+		}
+		if (activeShotBall != null)
+		{
+			RemovePendingBall(activeShotBall);
+			activeShotBall = null;
+		}
+	}
+
+	private void BeginPlayerTurn()
+	{
+		if (finished || FirebaseManager.Instance == null || !FirebaseManager.Instance.IsMyTurn()) return;
+		if (turnState == TurnState.PlayerTurn && (shotInProgress || activeShotBall != null)) return;
+		if (playerShots >= shotsPerPlayer)
+		{
+			turnState = TurnState.WaitingOpponent;
+			return;
+		}
+		if (!ActivateCurrentBall()) return;
+		turnState = TurnState.PlayerTurn;
+		Debug.Log("<color=green>[FootballVR] SUA VEZ!</color> Chutes: " + playerShots + "/" + shotsPerPlayer);
+		if (source != null && !source.isPlaying) source.Play();
+	}
+
+	private GameObject GetCurrentBall() { return currentBall >= 0 && currentBall < balls.Count ? balls[currentBall] : null; }
+
+	private bool ActivateCurrentBall()
+	{
+		GameObject ball = GetCurrentBall();
+		if (ball == null) return false;
+		if (activeShotBall == ball && ball.activeSelf) return true;
+
+		ball.SetActive(true);
+		Rigidbody ballRb = ball.GetComponent<Rigidbody>();
+		if (ballRb == null) return false;
+
+		ballRb.linearVelocity = Vector3.zero;
+		ballRb.angularVelocity = Vector3.zero;
+		ballRb.isKinematic = false;
+		ballRb.WakeUp();
+		activeShotBall = ball;
+		return true;
+	}
+
+	private void OnCollisionEnter(Collision collision)
+	{
+		if (finished || turnState != TurnState.PlayerTurn || shotInProgress) return;
+		if (FirebaseManager.Instance == null || !FirebaseManager.Instance.IsMyTurn()) return;
+
+		Rigidbody ballRb = collision.rigidbody;
+		if (ballRb == null || !ballRb.gameObject.CompareTag("Ball")) return;
+
+		GameObject current = GetCurrentBall();
+		if (current == null || ballRb.gameObject != current) return;
+
+		Vector3 kickDirection = ballRb.linearVelocity.normalized;
+		if (kickDirection.sqrMagnitude < 0.001f)
+		{
+			if (collision.contactCount == 0) return;
+			kickDirection = -collision.GetContact(0).normal;
+		}
+		if (kickDirection.sqrMagnitude < 0.001f) return;
+
+		kickDirection.y += upwardForce;
+		kickDirection.Normalize();
+		LaunchBall(ballRb, kickDirection);
+	}
+
+	[ContextMenu("Testar Chute Aleatório")]
+	private void SimularChuteAleatorio()
+	{
+		if (finished || turnState != TurnState.PlayerTurn || shotInProgress || FirebaseManager.Instance == null || !FirebaseManager.Instance.IsMyTurn()) return;
+		GameObject ball = GetCurrentBall();
+		if (ball == null) return;
+		if (ExecuteRandomKick(ball)) Debug.Log("[FootballVR] Chute de teste executado.");
+	}
+
+	private bool ExecuteRandomKick(GameObject ball)
+	{
+		if (ball == null || goalCenter == null) return false;
+		Rigidbody ballRb = ball.GetComponent<Rigidbody>();
+		if (ballRb == null) return false;
+
+		int targetIndex = Random.Range(0, 5);
+		Vector3 targetOffset = targetIndex switch
+		{
+			0 => new Vector3(-2f, 1.5f, 0f),
+			1 => new Vector3(2f, 1.5f, 0f),
+			2 => new Vector3(-2f, 0f, 0f),
+			3 => new Vector3(2f, 0f, 0f),
+			_ => Vector3.zero
+		};
+
+		Vector3 targetPosition = goalCenter.TransformPoint(targetOffset);
+		Vector3 direction = (targetPosition - ballRb.position).normalized;
+		direction.y = upwardForce;
+		direction.Normalize();
+		LaunchBall(ballRb, direction);
+		return true;
+	}
+
+	private void LaunchBall(Rigidbody ballRb, Vector3 direction)
+	{
+		if (ballRb == null || shotInProgress || FirebaseManager.Instance == null || !FirebaseManager.Instance.IsMyTurn()) return;
+
+		shotInProgress = true;
+		shotResultSent = false;
+		activeShotBall = ballRb.gameObject;
+
+		pendingBalls.Add(activeShotBall);
+		ballIdleTimers[activeShotBall] = 0f;
+		ballElapsedTimers[activeShotBall] = 0f;
+
+		ballRb.isKinematic = false;
+		ballRb.WakeUp();
+		ballRb.AddForce(direction * extraForce, ForceMode.Impulse);
+
+		if (goalCenter != null)
+		{
+			curvedBall = ballRb;
+			curveTimer = curveDuration;
+		}
+		Debug.Log("[FootballVR] Chute realizado. Aguardando resultado físico.");
+	}
+
+	public void Goal(GameObject ball)
+	{
+		if (ball == null || finished || !shotInProgress || shotResultSent) return;
+		if (ball != activeShotBall || !pendingBalls.Contains(ball) || scoredBalls.Contains(ball)) return;
+		scoredBalls.Add(ball);
+		Debug.Log("[FootballVR] Gol detectado localmente pelo trigger.");
+		ResolveShot(ball, true);
+	}
+
+	private void UpdatePendingBalls()
 	{
 		ballsToRemove.Clear();
-
 		foreach (GameObject ball in pendingBalls)
 		{
-			if (ball == null)
-			{
-				ballsToRemove.Add(ball);
-				continue;
-			}
+			if (ball == null) { ballsToRemove.Add(ball); continue; }
+			Rigidbody ballRb = ball.GetComponent<Rigidbody>();
+			if (ballRb == null) { ballsToRemove.Add(ball); continue; }
 
-			Rigidbody rb = ball.GetComponent<Rigidbody>();
-
-			if (rb == null)
-			{
-				ballsToRemove.Add(ball);
-				continue;
-			}
-
-			float elapsed = ballElapsedTimers[ball] + Time.deltaTime;
-
+			float elapsed = ballElapsedTimers.TryGetValue(ball, out float oldElapsed) ? oldElapsed + Time.deltaTime : Time.deltaTime;
 			ballElapsedTimers[ball] = elapsed;
 
-			// Tempo máximo para a bola alcançar o gol.
 			if (elapsed >= maxBallResolveTime)
 			{
-				Debug.Log(
-					"[QuestFootKick] Tempo de resolução da bola esgotado."
-				);
-
 				ballsToRemove.Add(ball);
 				continue;
 			}
 
-			// Verifica se a bola parou.
-			if (rb.linearVelocity.sqrMagnitude <=
-				stopVelocity * stopVelocity)
+			if (ballRb.linearVelocity.sqrMagnitude <= stopVelocity * stopVelocity)
 			{
-				float idle = ballIdleTimers[ball] + Time.deltaTime;
-
+				float idle = ballIdleTimers.TryGetValue(ball, out float oldIdle) ? oldIdle + Time.deltaTime : Time.deltaTime;
 				ballIdleTimers[ball] = idle;
-
-				if (idle >= ballStopDuration)
-				{
-					Debug.Log(
-						"[QuestFootKick] Bola parada. Tentativa encerrada."
-					);
-
-					ballsToRemove.Add(ball);
-				}
+				if (idle >= ballStopDuration) ballsToRemove.Add(ball);
 			}
 			else
 			{
 				ballIdleTimers[ball] = 0f;
 			}
 		}
-
 		foreach (GameObject ball in ballsToRemove)
-			RemovePendingBall(ball);
-
-		// Todas as tentativas foram resolvidas.
-		if (turnState == TurnState.WaitingResults &&
-			pendingBalls.Count == 0)
-		{
-			FinishGame();
-		}
+			ResolveShot(ball, ball != null && scoredBalls.Contains(ball));
 	}
 
-	void RemovePendingBall(GameObject ball)
+	private void ResolveShot(GameObject ball, bool goal)
+	{
+		if (shotResultSent || !shotInProgress) return;
+		shotResultSent = true;
+		RemovePendingBall(ball);
+		turnState = TurnState.WaitingResults;
+		Debug.Log("<color=cyan>[FootballVR] Enviando resultado: " + (goal ? "GOL" : "ERRO") + "</color>");
+		_ = SubmitShotResult(goal);
+	}
+
+	private async Task SubmitShotResult(bool goal)
+	{
+		FirebaseManager manager = FirebaseManager.Instance;
+		if (manager == null) return;
+		bool success = await manager.SubmitShot(goal);
+		if (!success) Debug.LogError("[FootballVR] Falha ao enviar resultado.");
+		else Debug.Log("[FootballVR] Resultado enviado. Turno será atualizado.");
+	}
+
+	private void RemovePendingBall(GameObject ball)
 	{
 		pendingBalls.Remove(ball);
-
 		if (ball != null)
 		{
 			ballIdleTimers.Remove(ball);
 			ballElapsedTimers.Remove(ball);
-
-			if (curvedBall != null &&
-				curvedBall.gameObject == ball)
-			{
-				curvedBall = null;
-			}
+			if (curvedBall != null && curvedBall.gameObject == ball) curvedBall = null;
 		}
 	}
 
-	// --------------------------------------------------
-	// IDENTIFICAÇÃO DE GOLS
-	// --------------------------------------------------
-
-	public void Goal(GameObject ball)
+	private void FixedUpdate()
 	{
-		if (ball == null || finished)
-			return;
-
-		// A bola precisa ter sido realmente chutada.
-		if (!ballOwners.TryGetValue(ball, out ShotOwner owner))
-		{
-			Debug.LogWarning(
-				"[QuestFootKick] Bola sem autor de chute registrado."
-			);
-
-			return;
-		}
-
-		// Evita gols duplicados.
-		if (scoredBalls.Contains(ball))
-			return;
-
-		// Evita registrar bolas que já tiveram a tentativa encerrada.
-		if (!pendingBalls.Contains(ball))
-			return;
-
-		scoredBalls.Add(ball);
-
-		RemovePendingBall(ball);
-
-		if (owner == ShotOwner.Player)
-		{
-			playerGoals++;
-
-			Debug.Log(
-				$"<color=green>GOL DO JOGADOR! " +
-				$"PLACAR: {playerGoals} x {opponentGoals}</color>"
-			);
-
-			onPlayerGoal?.Invoke();
-		}
-		else
-		{
-			opponentGoals++;
-
-			Debug.Log(
-				$"<color=red>GOL DO ADVERSÁRIO! " +
-				$"PLACAR: {playerGoals} x {opponentGoals}</color>"
-			);
-
-			onOpponentGoal?.Invoke();
-		}
-
-		if (turnState == TurnState.WaitingResults &&
-			pendingBalls.Count == 0)
-		{
-			FinishGame();
-		}
-	}
-
-	// --------------------------------------------------
-	// CURVA DA BOLA
-	// --------------------------------------------------
-
-	void FixedUpdate()
-	{		
-
-		if (curvedBall == null)
-			return;
-
-		if (curveTimer <= 0f)
-		{
-			curvedBall = null;
-			return;
-		}
-
+		if (curvedBall == null || curveTimer <= 0f) { curvedBall = null; return; }
 		ApplyGoalCurve();
-
 		curveTimer -= Time.fixedDeltaTime;
 	}
 
-	void ApplyGoalCurve()
+	private void ApplyGoalCurve()
 	{
-		if (goalCenter == null || curvedBall == null)
-			return;
-
-		Vector3 velocity = curvedBall.linearVelocity;
-
-		if (velocity.sqrMagnitude < 0.1f)
-			return;
-
+		if (goalCenter == null || curvedBall == null) return;
 		Vector3 currentDirection = curvedBall.linearVelocity;
 		currentDirection.y = 0f;
-
-		if (currentDirection.sqrMagnitude < 0.001f)
-			return;
-
+		if (currentDirection.sqrMagnitude < 0.001f) return;
 		currentDirection.Normalize();
 
 		Vector3 goalDirection = goalCenter.position - curvedBall.position;
 		goalDirection.y = 0f;
-
-		if (goalDirection.sqrMagnitude < 0.001f)
-			return;
-
+		if (goalDirection.sqrMagnitude < 0.001f) return;
 		goalDirection.Normalize();
 
-		// Identifica para qual lado a bola precisa corrigir
-		float angle = Vector3.SignedAngle(
-			currentDirection,
-			goalDirection,
-			Vector3.up
-		);
-
-		// Limita a intensidade da correção
-		float correction = Mathf.Clamp(
-			angle * curveStrength,
-			-maxCurveAcceleration,
-			maxCurveAcceleration
-		);
-
-		// Direção lateral correta
-		Vector3 lateralDirection = Vector3.Cross(
-			Vector3.up,
-			currentDirection
-		).normalized;
-
-		// Aplica a curva em direção ao centro do gol
-		curvedBall.AddForce(
-			lateralDirection * correction,
-			ForceMode.Acceleration
-		);
-
-		curvedBall.AddForce(
-			lateralDirection * correction,
-			ForceMode.Acceleration
-		);
+		float angle = Vector3.SignedAngle(currentDirection, goalDirection, Vector3.up);
+		float correction = Mathf.Clamp(angle * curveStrength, -maxCurveAcceleration, maxCurveAcceleration);
+		Vector3 lateralDirection = Vector3.Cross(Vector3.up, currentDirection).normalized;
+		curvedBall.AddForce(lateralDirection * correction, ForceMode.Acceleration);
 	}
 
-	// --------------------------------------------------
-	// CONTROLE DAS BOLAS
-	// --------------------------------------------------
-
-	GameObject GetCurrentBall()
+	private void FinishGame()
 	{
-		while (currentBall < balls.Count)
-		{
-			GameObject ball = balls[currentBall];
-
-			if (ball != null)
-				return ball;
-
-			currentBall++;
-		}
-
-		return null;
-	}
-
-	bool ActivateCurrentBall()
-	{
-		GameObject ball = GetCurrentBall();
-
-		if (ball == null)
-		{
-			Debug.LogWarning(
-				"[QuestFootKick] Não existem mais bolas disponíveis."
-			);
-
-			noMoreBalls = true;
-			CheckGameCompletion();
-
-			return false;
-		}
-
-		ball.SetActive(true);
-
-		Rigidbody rb = ball.GetComponent<Rigidbody>();
-
-		if (rb == null)
-		{
-			Debug.LogError(
-				$"[QuestFootKick] A bola {ball.name} não possui Rigidbody."
-			);
-
-			noMoreBalls = true;
-			CheckGameCompletion();
-
-			return false;
-		}
-
-		rb.isKinematic = false;
-		rb.WakeUp();
-
-		return true;
-	}
-
-	void AdvanceBall()
-	{
-		currentBall++;
-	}
-
-	// --------------------------------------------------
-	// TURNOS
-	// --------------------------------------------------
-
-	void BeginPlayerTurn()
-	{
-		if (finished || noMoreBalls)
-			return;
-
-		if (playerShots >= shotsPerPlayer)
-		{
-			if (opponentShots >= shotsPerPlayer)
-				CheckGameCompletion();
-
-			return;
-		}
-
-		if (!ActivateCurrentBall())
-			return;
-
-		turnState = TurnState.PlayerTurn;
-
-		Debug.Log(
-			$"[QuestFootKick] SUA VEZ! " +
-			$"Chutes: {playerShots}/{shotsPerPlayer} | " +
-			$"Adversário: {opponentShots}/{shotsPerPlayer} | " +
-			$"Placar: {playerGoals} x {opponentGoals}"
-		);
-
-		source.Play();
-	}
-
-	void BeginOpponentTurn()
-	{
-		if (finished || noMoreBalls)
-			return;
-
-		if (opponentShots >= shotsPerPlayer)
-		{
-			BeginPlayerTurn();
-			return;
-		}
-
-		GameObject ball = GetCurrentBall();
-
-		if (ball == null)
-		{
-			noMoreBalls = true;
-			CheckGameCompletion();
-			return;
-		}
-
-		if (!ActivateCurrentBall())
-			return;
-
-		source.Play();
-
-		// O adversário realiza o chute.
-		bool kicked = ExecuteRandomKick(
-			ball,
-			ShotOwner.Opponent
-		);
-
-		if (!kicked)
-		{
-			Debug.LogError(
-				"[QuestFootKick] Não foi possível executar o chute do adversário."
-			);
-
-			noMoreBalls = true;
-			CheckGameCompletion();
-			return;
-		}
-
-		opponentShots++;
-
-		AdvanceBall();
-
-		Debug.Log(
-			$"[QuestFootKick] ADVERSÁRIO CHUTOU! " +
-			$"{opponentShots}/{shotsPerPlayer}"
-		);
-
-		CheckGameCompletion();
-
-		if (turnState == TurnState.WaitingResults ||
-			finished)
-		{
-			return;
-		}
-
-		turnState = TurnState.WaitingPlayer;
-		turnTimer = turnTime;
-	}
-
-	void CompletePlayerTurn()
-	{
-		if (finished || turnState != TurnState.PlayerTurn)
-			return;
-
-		playerShots++;
-
-		AdvanceBall();
-
-		Debug.Log(
-			$"[QuestFootKick] VOCÊ CHUTOU! " +
-			$"{playerShots}/{shotsPerPlayer}"
-		);
-
-		CheckGameCompletion();
-
-		if (turnState == TurnState.WaitingResults ||
-			finished)
-		{
-			return;
-		}
-
-		turnState = TurnState.WaitingOpponent;
-		turnTimer = turnTime;
-	}
-
-	// --------------------------------------------------
-	// VERIFICAÇÃO DA PARTIDA
-	// --------------------------------------------------
-
-	void CheckGameCompletion()
-	{
-		bool allShotsCompleted =
-			playerShots >= shotsPerPlayer &&
-			opponentShots >= shotsPerPlayer;
-
-		if (allShotsCompleted || noMoreBalls)
-		{
-			turnState = TurnState.WaitingResults;
-
-			Debug.Log(
-				"[QuestFootKick] Aguardando resolução das bolas..."
-			);
-
-			if (pendingBalls.Count == 0)
-				FinishGame();
-		}
-	}
-
-	// --------------------------------------------------
-	// CHUTE DO JOGADOR
-	// --------------------------------------------------
-
-	private void OnCollisionEnter(Collision collision)
-	{
-		if (finished || turnState != TurnState.PlayerTurn)
-			return;
-
-		Rigidbody ballRb = collision.rigidbody;
-
-		if (ballRb == null)
-			return;
-
-		if (!ballRb.gameObject.CompareTag("Ball"))
-			return;
-
-		GameObject current = GetCurrentBall();
-
-		if (current == null || ballRb.gameObject != current)
-			return;
-
-		// Ignora contatos fracos ou acidentais
-		float impactSpeed = collision.relativeVelocity.magnitude;
-
-		// Recupera a direção física original da bola
-		Vector3 kickDirection = ballRb.linearVelocity.normalized;
-
-		// Se a bola estiver parada, utiliza a normal da colisão
-		if (kickDirection.sqrMagnitude < 0.001f)
-		{
-			if (collision.contactCount == 0)
-				return;
-
-			kickDirection = -collision.GetContact(0).normal;
-		}
-
-		if (kickDirection.sqrMagnitude < 0.001f)
-			return;
-
-		// Mantém a elevação fixa, independente do controle
-		kickDirection.y += upwardForce;
-		kickDirection.Normalize();
-
-		LaunchBall(
-			ballRb,
-			kickDirection,
-			ShotOwner.Player
-		);
-
-		CompletePlayerTurn();
-	}
-
-	// --------------------------------------------------
-	// CHUTE ALEATÓRIO
-	// --------------------------------------------------
-
-	[ContextMenu("Testar Chute Aleatório")]
-	void SimularChuteAleatorio()
-	{
-		if (finished || turnState != TurnState.PlayerTurn)
-		{
-			Debug.LogWarning(
-				"[QuestFootKick] Não é sua vez de chutar."
-			);
-
-			return;
-		}
-
-		GameObject ball = GetCurrentBall();
-
-		if (ball == null)
-			return;
-
-		if (!ExecuteRandomKick(ball, ShotOwner.Player))
-			return;
-
-		CompletePlayerTurn();
-	}
-
-	bool ExecuteRandomKick(GameObject ball, ShotOwner owner)
-	{
-		if (ball == null || goalCenter == null)
-			return false;
-
-		Rigidbody ballRb = ball.GetComponent<Rigidbody>();
-
-		if (ballRb == null)
-			return false;
-
-		int targetIndex = Random.Range(0, 5);
-
-		Vector3 targetOffset = Vector3.zero;
-
-		switch (targetIndex)
-		{
-			case 0:
-				targetOffset = new Vector3(
-					-horizontalOffset,
-					verticalOffset,
-					0f
-				);
-				break;
-
-			case 1:
-				targetOffset = new Vector3(
-					horizontalOffset,
-					verticalOffset,
-					0f
-				);
-				break;
-
-			case 2:
-				targetOffset = new Vector3(
-					-horizontalOffset,
-					0f,
-					0f
-				);
-				break;
-
-			case 3:
-				targetOffset = new Vector3(
-					horizontalOffset,
-					0f,
-					0f
-				);
-				break;
-
-			case 4:
-				targetOffset = Vector3.zero;
-				break;
-		}
-
-		Vector3 targetPosition =
-			goalCenter.TransformPoint(targetOffset);
-
-		Vector3 kickDirection =
-			targetPosition - ballRb.position;
-
-		kickDirection.y = 0f;
-
-		if (kickDirection.sqrMagnitude < 0.001f)
-			return false;
-
-		kickDirection.Normalize();
-
-		kickDirection.y = upwardForce;
-		kickDirection.Normalize();
-
-		LaunchBall(
-			ballRb,
-			kickDirection,
-			owner
-		);
-
-		Debug.Log(
-			$"[QuestFootKick] Chute executado. " +
-			$"Autor: {owner} | Alvo: {targetIndex}"
-		);
-
-		return true;
-	}
-
-	// --------------------------------------------------
-	// EXECUÇÃO DO IMPULSO
-	// --------------------------------------------------
-
-	void LaunchBall(
-	Rigidbody ballRb,
-	Vector3 direction,
-	ShotOwner owner
-)
-	{
-		if (ballRb == null)
-			return;
-
-		GameObject ball = ballRb.gameObject;
-
-		// Registra a autoria antes de aplicar o impulso
-		ballOwners[ball] = owner;
-
-		// Registra que esta bola precisa ser resolvida
-		pendingBalls.Add(ball);
-
-		ballIdleTimers[ball] = 0f;
-		ballElapsedTimers[ball] = 0f;
-
-		ballRb.isKinematic = false;
-		ballRb.WakeUp();
-
-		// Impulso exclusivamente pela direção física calculada
-		ballRb.AddForce(
-			direction * extraForce,
-			ForceMode.Impulse
-		);
-
-		// A assistência de curva pertence somente ao jogador
-		if (owner == ShotOwner.Player && goalCenter != null)
-		{
-			curvedBall = ballRb;
-			curveTimer = curveDuration;
-		}
-		else
-		{
-			curvedBall = null;
-			curveTimer = 0f;
-		}
-	}
-
-	// --------------------------------------------------
-	// FINALIZAÇÃO
-	// --------------------------------------------------
-
-	void FinishGame()
-	{
-		if (finished)
-			return;
-
+		if (finished) return;
 		finished = true;
 		turnState = TurnState.Finished;
+		CancelInvoke(nameof(CleanupPreviousBall));
+		ResetAllBalls();
 
-		string result;
+		string result = (FirebaseManager.Instance.PlayerId == "Jogador1" ? player1Goals : player2Goals) > (FirebaseManager.Instance.PlayerId == "Jogador1" ? player2Goals : player1Goals)
+			? "VITÓRIA!"
+			: (FirebaseManager.Instance.PlayerId == "Jogador1" ? player1Goals : player2Goals) < (FirebaseManager.Instance.PlayerId == "Jogador1" ? player2Goals : player1Goals)
+				? "DERROTA!"
+				: "EMPATE!";
 
-		if (playerGoals > opponentGoals)
-			result = "VITÓRIA DO JOGADOR!";
-		else if (opponentGoals > playerGoals)
-			result = "VITÓRIA DO ADVERSÁRIO!";
-		else
-			result = "EMPATE!";
-
-		Debug.Log(
-			$"<color=yellow>[QuestFootKick] PARTIDA FINALIZADA!</color>\n" +
-			$"Jogador: {playerGoals} gols | " +
-			$"Adversário: {opponentGoals} gols\n" +
-			$"{result}\n" +
-			$"Chutes: {playerShots} x {opponentShots}"
-		);
-
+		Debug.Log("<color=yellow>[FootballVR] PARTIDA FINALIZADA!</color>\nJogador 1: " + player1Goals + " | Jogador 2: " + player2Goals + "\n" + result);
 		onFinished?.Invoke();
-
-		Invoke(nameof(RestartGame), 5f);
-	}
-
-	void RestartGame()
-	{
-		SceneManager.LoadScene(
-			SceneManager.GetActiveScene().buildIndex
-		);
 	}
 }

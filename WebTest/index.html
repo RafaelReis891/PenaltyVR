@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FootballVR - Simulador Multiplayer</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <main class="container">
+
+        <header class="header">
+            <div>
+                <span class="tag">FOOTBALL VR</span>
+                <h1>Simulador <span>Jogador 2</span></h1>
+                <p>Ambiente de testes multiplayer</p>
+            </div>
+
+            <div id="connectionStatus" class="status offline">
+                <span></span>
+                Desconectado
+            </div>
+        </header>
+
+        <!-- LOGIN NA SALA -->
+        <section class="panel" id="joinPanel">
+
+            <h2>Entrar em uma partida</h2>
+
+            <label for="roomCode">Sala fixa</label>
+
+            <div class="join-area">
+                <input
+                    id="roomCode"
+                    type="text"
+                    value="ARENA01" readonly
+                    maxlength="12"
+                    autocomplete="off"
+                >
+
+                <button id="joinButton">
+                    ENTRAR
+                </button>
+            </div>
+
+            <p id="message">Conectando ao Firebase...</p>
+
+        </section>
+
+        <!-- PARTIDA -->
+        <section class="panel hidden" id="gamePanel">
+
+            <div class="game-header">
+                <div>
+                    <span class="tag">PARTIDA AO VIVO</span>
+                    <h2 id="roomTitle">Sala</h2>
+                </div>
+
+                <span id="matchStatus" class="badge waiting">
+                    AGUARDANDO
+                </span>
+            </div>
+
+            <!-- PLACAR -->
+            <div class="scoreboard">
+
+                <div class="player-card">
+                    <span>JOGADOR 1</span>
+                    <strong id="hostScore">0</strong>
+                    <small>
+                        <b id="hostShots">0</b> chutes
+                    </small>
+                </div>
+
+                <div class="versus">X</div>
+
+                <div class="player-card guest">
+                    <span>JOGADOR 2</span>
+                    <strong id="guestScore">0</strong>
+                    <small>
+                        <b id="guestShots">0</b> chutes
+                    </small>
+                </div>
+
+            </div>
+
+            <!-- TURNO -->
+            <div class="turn-panel">
+
+                <div>
+                    <span class="tag">VEZ ATUAL</span>
+                    <h3 id="turnName">Aguardando...</h3>
+                    <p id="turnDescription">Aguardando partida.</p>
+                </div>
+
+                <div class="timer">
+                    <span>TEMPO</span>
+                    <strong id="timer">--</strong>
+                    <small id="timerStatus">Aguardando</small>
+                </div>
+
+            </div>
+
+            <!-- SIMULAÇÃO -->
+            <div class="simulation">
+
+                <button id="shotButton" disabled>
+                    SIMULAR CHUTE
+                </button>
+
+                <p id="shotMessage">
+                    O botão será liberado na vez do Jogador 2.
+                </p>
+
+            </div>
+
+            <!-- INFORMAÇÕES -->
+            <div class="match-info">
+
+                <div class="info-header">
+                    <strong>Progresso da partida</strong>
+                    <span id="turnCount">0 / 10 chutes</span>
+                </div>
+
+                <div class="progress">
+                    <div id="progressBar"></div>
+                </div>
+
+                <div class="info-grid">
+                    <div>
+                        <small>ID FIXO DO JOGADOR 2</small>
+                        <code id="playerUID">---</code>
+                    </div>
+
+                    <div>
+                        <small>VENCEDOR</small>
+                        <strong id="winner">---</strong>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- CAIXA DE DEBUG VISUAL (Adicione isto) -->
+            <div id="debugBox" style="background: #1a1a1a; border: 1px solid #444; color: #00ff00; padding: 12px; font-family: monospace; font-size: 13px; margin-top: 20px; border-radius: 6px; line-height: 1.5;">
+                Aguardando dados da partida...
+            </div>
+
+            <button id="leaveButton" class="leave-button" style="margin-top: 15px;">
+                SAIR DA SALA
+            </button>
+
+        </section>
+
+        <footer>
+            FootballVR Web Simulator
+            <span>Ferramenta de desenvolvimento</span>
+        </footer>
+
+    </main>
+
+    <script type="module" src="app.js"></script>
+
+</body>
+</html>

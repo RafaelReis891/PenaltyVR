@@ -61,4 +61,10 @@ public class GoalKeeperActions : MonoBehaviour
 
 		triggersROOT.transform.position = new Vector3(0, 0, triggersMin);
 	}
+
+	public void ForceReset()
+	{
+		CancelInvoke(nameof(ResetGoalKeeperPosRot));
+		ResetGoalKeeperPosRot();
+	}
 }

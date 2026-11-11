@@ -137,6 +137,7 @@ Shader "AiKodex/Stadium Creator 2/Crowd Character"
 
             HLSLPROGRAM
             #pragma target 4.5
+            #pragma multi_compile_instancing
             #pragma vertex Vert
             #pragma fragment Frag
             #pragma multi_compile_local _ _CROWD_ALPHATEST
@@ -155,6 +156,7 @@ Shader "AiKodex/Stadium Creator 2/Crowd Character"
             struct Varyings
             {
                 float4 positionCS : SV_POSITION;
+                UNITY_VERTEX_OUTPUT_STEREO
                 float3 positionWS : TEXCOORD0;
                 float3 normalWS   : TEXCOORD1;
                 float4 tangentWS  : TEXCOORD2;
@@ -166,8 +168,10 @@ Shader "AiKodex/Stadium Creator 2/Crowd Character"
 
             Varyings Vert(Attributes v)
             {
+                UNITY_SETUP_INSTANCE_ID(v);
                 SkinnedVertex s = CrowdSkin(v);
                 Varyings o;
+                UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO(o);
                 o.positionWS = s.positionWS;
                 o.positionCS = TransformWorldToHClip(s.positionWS);
                 o.normalWS = s.normalWS;
@@ -189,6 +193,7 @@ Shader "AiKodex/Stadium Creator 2/Crowd Character"
 
             half4 Frag(Varyings i) : SV_Target
             {
+                UNITY_SETUP_STEREO_EYE_INDEX_POST_VERTEX(i);
                 CrowdInstance inst = _Instances[i.data.x];
                 uint part = i.data.y;
                 float4 alb = SAMPLE_TEXTURE2D_ARRAY(_AlbedoArray, sampler_AlbedoArray, i.uv, inst.variant);
@@ -288,6 +293,7 @@ Shader "AiKodex/Stadium Creator 2/Crowd Character"
 
             HLSLPROGRAM
             #pragma target 4.5
+            #pragma multi_compile_instancing
             #pragma vertex Vert
             #pragma fragment Frag
             #pragma multi_compile_local _ _CROWD_ALPHATEST
@@ -300,12 +306,14 @@ Shader "AiKodex/Stadium Creator 2/Crowd Character"
             struct Varyings
             {
                 float4 positionCS : SV_POSITION;
+                UNITY_VERTEX_OUTPUT_STEREO
                 float2 uv : TEXCOORD0;
                 nointerpolation uint variant : TEXCOORD1;
             };
 
             Varyings Vert(Attributes v)
             {
+                UNITY_SETUP_INSTANCE_ID(v);
                 SkinnedVertex s = CrowdSkin(v);
                 #if _CASTING_PUNCTUAL_LIGHT_SHADOW
                     float3 lightDir = normalize(_LightPosition - s.positionWS);
@@ -313,6 +321,7 @@ Shader "AiKodex/Stadium Creator 2/Crowd Character"
                     float3 lightDir = _LightDirection;
                 #endif
                 Varyings o;
+                UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO(o);
                 o.positionCS = TransformWorldToHClip(ApplyShadowBias(s.positionWS, s.normalWS, lightDir));
                 #if UNITY_REVERSED_Z
                     o.positionCS.z = min(o.positionCS.z, UNITY_NEAR_CLIP_VALUE);
@@ -326,6 +335,7 @@ Shader "AiKodex/Stadium Creator 2/Crowd Character"
 
             half4 Frag(Varyings i) : SV_Target
             {
+                UNITY_SETUP_STEREO_EYE_INDEX_POST_VERTEX(i);
                 #if defined(_CROWD_ALPHATEST)
                     clip(SampleAlpha(i.uv, i.variant) - _Cutoff);
                 #endif
@@ -344,6 +354,7 @@ Shader "AiKodex/Stadium Creator 2/Crowd Character"
 
             HLSLPROGRAM
             #pragma target 4.5
+            #pragma multi_compile_instancing
             #pragma vertex Vert
             #pragma fragment Frag
             #pragma multi_compile_local _ _CROWD_ALPHATEST
@@ -351,14 +362,17 @@ Shader "AiKodex/Stadium Creator 2/Crowd Character"
             struct Varyings
             {
                 float4 positionCS : SV_POSITION;
+                UNITY_VERTEX_OUTPUT_STEREO
                 float2 uv : TEXCOORD0;
                 nointerpolation uint variant : TEXCOORD1;
             };
 
             Varyings Vert(Attributes v)
             {
+                UNITY_SETUP_INSTANCE_ID(v);
                 SkinnedVertex s = CrowdSkin(v);
                 Varyings o;
+                UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO(o);
                 o.positionCS = TransformWorldToHClip(s.positionWS);
                 o.uv = v.uv;
                 o.variant = _Instances[s.instance].variant;
@@ -367,6 +381,7 @@ Shader "AiKodex/Stadium Creator 2/Crowd Character"
 
             half4 Frag(Varyings i) : SV_Target
             {
+                UNITY_SETUP_STEREO_EYE_INDEX_POST_VERTEX(i);
                 #if defined(_CROWD_ALPHATEST)
                     clip(SampleAlpha(i.uv, i.variant) - _Cutoff);
                 #endif
@@ -384,6 +399,7 @@ Shader "AiKodex/Stadium Creator 2/Crowd Character"
 
             HLSLPROGRAM
             #pragma target 4.5
+            #pragma multi_compile_instancing
             #pragma vertex Vert
             #pragma fragment Frag
             #pragma multi_compile_local _ _CROWD_ALPHATEST
@@ -392,6 +408,7 @@ Shader "AiKodex/Stadium Creator 2/Crowd Character"
             struct Varyings
             {
                 float4 positionCS : SV_POSITION;
+                UNITY_VERTEX_OUTPUT_STEREO
                 float2 uv : TEXCOORD0;
                 float3 normalWS : TEXCOORD1;
                 nointerpolation uint variant : TEXCOORD2;
@@ -399,8 +416,10 @@ Shader "AiKodex/Stadium Creator 2/Crowd Character"
 
             Varyings Vert(Attributes v)
             {
+                UNITY_SETUP_INSTANCE_ID(v);
                 SkinnedVertex s = CrowdSkin(v);
                 Varyings o;
+                UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO(o);
                 o.positionCS = TransformWorldToHClip(s.positionWS);
                 o.uv = v.uv;
                 o.normalWS = s.normalWS;
@@ -410,6 +429,7 @@ Shader "AiKodex/Stadium Creator 2/Crowd Character"
 
             half4 Frag(Varyings i) : SV_Target
             {
+                UNITY_SETUP_STEREO_EYE_INDEX_POST_VERTEX(i);
                 #if defined(_CROWD_ALPHATEST)
                     clip(SampleAlpha(i.uv, i.variant) - _Cutoff);
                 #endif
