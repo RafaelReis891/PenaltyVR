@@ -1281,7 +1281,7 @@ MonoBehaviour:
     m_Recordable: 0
     m_PostExtrapolationMode: 0
     m_PreExtrapolationMode: 0
-    m_PostExtrapolationTime: 0
+    m_PostExtrapolationTime: 37.33457565307617
     m_PreExtrapolationTime: 0
     m_DisplayName: Parada (inicio)
   - m_Version: 1
@@ -1350,8 +1350,8 @@ MonoBehaviour:
     m_Recordable: 0
     m_PostExtrapolationMode: 0
     m_PreExtrapolationMode: 0
-    m_PostExtrapolationTime: 0
-    m_PreExtrapolationTime: 0
+    m_PostExtrapolationTime: Infinity
+    m_PreExtrapolationTime: 37.33457565307617
     m_DisplayName: Parada (final)
   m_Markers:
     m_Objects: []
@@ -1531,7 +1531,7 @@ MonoBehaviour:
     m_Recordable: 0
     m_PostExtrapolationMode: 1
     m_PreExtrapolationMode: 1
-    m_PostExtrapolationTime: 0
+    m_PostExtrapolationTime: Infinity
     m_PreExtrapolationTime: 0
     m_DisplayName: Andar (frente) parte 2
   m_Markers:
@@ -1771,6 +1771,7 @@ MonoBehaviour:
     m_Objects:
     - {fileID: 7615050674236467512}
     - {fileID: -6039363406376037851}
+    - {fileID: 3706025583342076238}
 --- !u!114 &-3550699553394419451
 MonoBehaviour:
   m_ObjectHideFlags: 1
@@ -3936,7 +3937,7 @@ MonoBehaviour:
     m_Recordable: 0
     m_PostExtrapolationMode: 1
     m_PreExtrapolationMode: 1
-    m_PostExtrapolationTime: 0
+    m_PostExtrapolationTime: Infinity
     m_PreExtrapolationTime: 0
     m_DisplayName: Camera atras
   m_Markers:
@@ -4094,8 +4095,8 @@ MonoBehaviour:
     m_Recordable: 0
     m_PostExtrapolationMode: 0
     m_PreExtrapolationMode: 0
-    m_PostExtrapolationTime: 0
-    m_PreExtrapolationTime: 0
+    m_PostExtrapolationTime: 6.941537097096443
+    m_PreExtrapolationTime: 0.01
     m_DisplayName: De costas (A - saida do vestiario)
   - m_Version: 1
     m_Start: 17.79963855445385
@@ -4163,8 +4164,8 @@ MonoBehaviour:
     m_Recordable: 0
     m_PostExtrapolationMode: 0
     m_PreExtrapolationMode: 0
-    m_PostExtrapolationTime: 0
-    m_PreExtrapolationTime: 0
+    m_PostExtrapolationTime: 1.0936653167009354
+    m_PreExtrapolationTime: 6.941537097096443
     m_DisplayName: Subir escada
   - m_Version: 1
     m_Start: 22.62905541062355
@@ -4232,8 +4233,8 @@ MonoBehaviour:
     m_Recordable: 0
     m_PostExtrapolationMode: 0
     m_PreExtrapolationMode: 0
-    m_PostExtrapolationTime: 0
-    m_PreExtrapolationTime: 0
+    m_PostExtrapolationTime: 0.054310619831085205
+    m_PreExtrapolationTime: 1.0936653167009354
     m_DisplayName: De costas (B - depois da escada)
   - m_Version: 1
     m_Start: 29.343210607767105
@@ -4301,8 +4302,8 @@ MonoBehaviour:
     m_Recordable: 0
     m_PostExtrapolationMode: 0
     m_PreExtrapolationMode: 0
-    m_PostExtrapolationTime: 0
-    m_PreExtrapolationTime: 0
+    m_PostExtrapolationTime: Infinity
+    m_PreExtrapolationTime: 0.054310619831085205
     m_DisplayName: De costas (C - perto da bola)
   m_Markers:
     m_Objects: []
@@ -4484,6 +4485,22 @@ MonoBehaviour:
   m_Retroactive: 0
   m_EmitOnce: 1
   m_Asset: {fileID: 11400000, guid: f57432d187da29a4ba047fb5465b2c73, type: 2}
+--- !u!114 &3706025583342076238
+MonoBehaviour:
+  m_ObjectHideFlags: 1
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 15c38f6fa1940124db1ab7f6fe7268d1, type: 3}
+  m_Name: Signal Emitter
+  m_EditorClassIdentifier: Unity.Timeline::UnityEngine.Timeline.SignalEmitter
+  m_Time: 45.33457565307617
+  m_Retroactive: 0
+  m_EmitOnce: 0
+  m_Asset: {fileID: 11400000, guid: 917965ea7231cef439a72df4397a8bd1, type: 2}
 --- !u!114 &3790811865916335056
 MonoBehaviour:
   m_ObjectHideFlags: 1
@@ -5219,7 +5236,7 @@ MonoBehaviour:
     m_Recordable: 0
     m_PostExtrapolationMode: 1
     m_PreExtrapolationMode: 1
-    m_PostExtrapolationTime: 0
+    m_PostExtrapolationTime: Infinity
     m_PreExtrapolationTime: 0
     m_DisplayName: Caminho
   m_Markers:
