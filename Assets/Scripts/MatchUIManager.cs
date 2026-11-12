@@ -15,7 +15,7 @@ public class MatchUIManager : MonoBehaviour
 
 	[Header("Jogador Atual")]
 	public TextMeshProUGUI txtCurrentPlayer;
-	private QuestFootKick questFootKick;
+	public QuestFootKick questFootKick;
 
 	[Header("Placar")]
 	public TextMeshProUGUI txtPlayer1Score;
@@ -38,6 +38,7 @@ public class MatchUIManager : MonoBehaviour
 	public UnityEvent onTurnTimeout;
 	public UnityEvent onMatchStarted;
 	public UnityEvent onMatchFinished;
+	public UnityEvent onRestartMode;
 
 	private FirebaseManager firebaseManager;
 	private FirebaseManager.RoomState currentRoom;
@@ -60,6 +61,7 @@ public class MatchUIManager : MonoBehaviour
 
 		firebaseManager.OnRoomUpdated += HandleRoomUpdated;
 		firebaseManager.OnRoomJoined += HandleRoomJoined;
+		firebaseManager.OnMatchRestartRequested += HandleMatchRestart;
 
 		if (firebaseManager.IsInRoom && firebaseManager.CurrentRoom != null)
 			HandleRoomUpdated(firebaseManager.CurrentRoom);
@@ -73,6 +75,7 @@ public class MatchUIManager : MonoBehaviour
 		{
 			firebaseManager.OnRoomUpdated -= HandleRoomUpdated;
 			firebaseManager.OnRoomJoined -= HandleRoomJoined;
+			firebaseManager.OnMatchRestartRequested -= HandleMatchRestart;
 		}
 	}
 
@@ -101,6 +104,15 @@ public class MatchUIManager : MonoBehaviour
 	{
 		if (txtRoomCode)
 			txtRoomCode.text = $"Sala: {firebaseManager.RoomCode}";
+	}
+
+	private void HandleMatchRestart()
+	{
+		Debug.Log("[MatchUI] Comando de reinício recebido do Painel de Controle!");
+
+		ShowFeedback("PARTIDA REINICIADA PELO ADMIN!", Color.magenta);
+
+		onRestartMode?.Invoke();
 	}
 
 	private void HandleRoomUpdated(FirebaseManager.RoomState room)
