@@ -55,6 +55,9 @@ public class FirebaseManager : MonoBehaviour
 	public event Action OnRoomJoined;
 	public event Action OnRoomLeft;
 	public event Action OnShotProcessed;
+	public event Action OnMatchRestartRequested;
+	private long lastRestartSignal = 0;
+	private bool restartSignalInitialized = false;
 
 	private void Awake()
 	{
@@ -262,6 +265,8 @@ public class FirebaseManager : MonoBehaviour
 			IsInRoom = true;
 			roomReference = targetRoom;
 			actionsReference = roomReference.Child("Actions");
+			restartSignalInitialized = false;
+			lastRestartSignal = 0;
 			AttachRoomListeners();
 			await UpdatePresence();
 			OnRoomJoined?.Invoke();
@@ -353,6 +358,35 @@ public class FirebaseManager : MonoBehaviour
 			TurnStartedAt = ReadLong(match.Child("TurnStartedAt")),
 			TurnDuration = Mathf.Max(1, ReadInt(match.Child("TurnDuration")))
 		};
+
+		// DETECÇÃO DE COMANDO DE REINÍCIO
+		CurrentRoom.RestartSignal = ReadLong(match.Child("RestartSignal"));
+
+		if (!restartSignalInitialized)
+		{
+			// Primeira sincronização: apenas registra o valor atual.
+			// Não executa comandos antigos armazenados no Firebase.
+			lastRestartSignal = CurrentRoom.RestartSignal;
+			restartSignalInitialized = true;
+
+			Debug.Log("[FootballVR] RestartSignal inicializado: " + lastRestartSignal);
+		}
+		else if (CurrentRoom.RestartSignal > lastRestartSignal)
+		{
+			// Novo comando recebido do painel administrativo.
+			lastRestartSignal = CurrentRoom.RestartSignal;
+
+			Debug.Log("[FootballVR] Novo comando de reinício detectado!");
+
+			OnMatchRestartRequested?.Invoke();
+		}
+		else if (CurrentRoom.RestartSignal < lastRestartSignal)
+		{
+			// O sinal foi zerado ou sofreu alguma alteração externa.
+			// Atualiza a referência sem disparar o evento.
+			lastRestartSignal = CurrentRoom.RestartSignal;
+		}
+
 		OnRoomUpdated?.Invoke(CurrentRoom);
 	}
 
@@ -622,5 +656,6 @@ public class FirebaseManager : MonoBehaviour
 		public bool Player2Connected;
 		public int TurnDuration;
 		public long TurnStartedAt;
+		public long RestartSignal;
 	}
 }

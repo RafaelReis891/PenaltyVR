@@ -157,6 +157,11 @@ namespace AiKodex.StadiumCreator2
             return emotionProfiles[0];
         }
 
+        public void ChangeCameraFustrum(Camera camera)
+        {
+            cullingCamera = camera;
+		}
+
         /// <summary>Scales the stand probability by how much of the mood's standing behaviour actually has clips, so a mood that
         /// mostly wants standing idles does not make people stand up only to clap when no standing idle exists.</summary>
         CrowdEmotionGPU AdjustForAvailableClips(CrowdEmotionGPU e)
