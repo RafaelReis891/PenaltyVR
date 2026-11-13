@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using TMPro;
 using UnityEngine;
 using UnityEngine.Events;
 
@@ -13,6 +14,7 @@ public class QuestFootKick : MonoBehaviour
 
 	[Tooltip("Nome que será exibido no painel Admin.")]
 	public string playerDisplayName = "Jogador 1";
+	public TMP_Text playerLocalLabel;
 
 	public AudioSource source;
 	public float linearVelocity;
@@ -78,11 +80,11 @@ public class QuestFootKick : MonoBehaviour
 	private int lastPlayer2Score;
 	private int lastProcessedTurn = -1;
 	private string lastRoomStatus = "";
-	private bool showSettingsMenu;
 
 	private void Start()
 	{
 		Debug.Log("[QuestFootKick] Iniciando. Papel configurado: " + myRole);
+		playerLocalLabel.text = playerDisplayName;
 		if (balls == null) balls = new List<GameObject>();
 		rb = GetComponent<Rigidbody>();
 
@@ -154,60 +156,12 @@ public class QuestFootKick : MonoBehaviour
 
 	private void Update()
 	{
-		if (Input.GetKeyDown(KeyCode.F1))
-		{
-			showSettingsMenu = !showSettingsMenu;
-			Cursor.lockState = showSettingsMenu ? CursorLockMode.None : CursorLockMode.Locked;
-			Cursor.visible = showSettingsMenu;
-		}
 
 		if (rb != null) linearVelocity = rb.linearVelocity.magnitude * 3.6f;
 		if (!finished) UpdatePendingBalls();
 
 		if (!finished && turnState == TurnState.PlayerTurn && Input.GetKeyDown(KeyCode.Space))
 			SimularChuteAleatorio();
-	}
-
-	private void OnGUI()
-	{
-		if (!showSettingsMenu) return;
-		// (Mantido igual ao original, apenas removendo referências a Host/Guest se houver na UI)
-		float windowWidth = 400f;
-		float windowHeight = 250f;
-		float x = (Screen.width - windowWidth) / 2f;
-		float y = (Screen.height - windowHeight) / 2f;
-		bool alreadyJoined = FirebaseManager.Instance != null && FirebaseManager.Instance.IsInRoom;
-
-		GUI.color = new Color(0f, 0f, 0f, 0.88f);
-		GUI.DrawTexture(new Rect(x, y, windowWidth, windowHeight), Texture2D.whiteTexture);
-		GUI.color = Color.white;
-
-		GUIStyle titleStyle = new GUIStyle(GUI.skin.label) { fontSize = 20, fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter };
-		GUI.Label(new Rect(x, y + 15, windowWidth, 30), "CONFIGURAÇÃO FIXA DA BUILD", titleStyle);
-
-		GUIStyle subStyle = new GUIStyle(GUI.skin.label) { fontSize = 12, alignment = TextAnchor.MiddleCenter, wordWrap = true, normal = { textColor = new Color(0.75f, 0.75f, 0.75f) } };
-		GUI.Label(new Rect(x + 20, y + 45, windowWidth - 40, 35), alreadyJoined ? "Conectado como: " + FirebaseManager.Instance.PlayerId : "Papel definido no Inspector (My Role)", subStyle);
-
-		GUI.enabled = false;
-		GUIStyle btnStyle = new GUIStyle(GUI.skin.button) { fontSize = 16, fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter };
-		GUI.color = myRole == PlayerRole.Player1 ? new Color(0.2f, 0.8f, 0.2f) : new Color(0.3f, 0.3f, 0.3f);
-		btnStyle.normal.textColor = myRole == PlayerRole.Player1 ? Color.black : Color.white;
-		GUI.Button(new Rect(x + 40, y + 90f, 320f, 50f), "JOGADOR 1", btnStyle);
-
-		GUI.color = myRole == PlayerRole.Player2 ? new Color(0.2f, 0.7f, 0.9f) : new Color(0.3f, 0.3f, 0.3f);
-		btnStyle.normal.textColor = myRole == PlayerRole.Player2 ? Color.black : Color.white;
-		GUI.Button(new Rect(x + 40, y + 150f, 320f, 50f), "JOGADOR 2", btnStyle);
-
-		GUI.enabled = true;
-		GUI.color = new Color(0.9f, 0.9f, 0.9f);
-		btnStyle.normal.textColor = Color.black;
-		if (GUI.Button(new Rect(x + 40, y + 210f, 320f, 50f), "FECHAR", btnStyle))
-		{
-			showSettingsMenu = false;
-			Cursor.lockState = CursorLockMode.Locked;
-			Cursor.visible = false;
-		}
-		GUI.color = Color.white;
 	}
 
 	private void OnSuccessfullyJoinedRoom()

@@ -6,70 +6,69 @@ using UnityEngine;
 
 public class AndroidDebugConsole : MonoBehaviour
 {
-    public static AndroidDebugConsole Instance { get; private set; }
+	public static AndroidDebugConsole Instance { get; private set; }
 
-    [Header("Configuração")]
 	[Header("Configuração")]
 	[SerializeField] private bool persistBetweenScenes = true;
 	[SerializeField] private int maxEntries = 500;
 	[SerializeField] private bool captureLogs = true;
-	private const string ConsoleEnabledKey = "AndroidDebugConsole_Enabled";
-	private bool consoleEnabled;
 
-    [Header("Interface")]
-    [SerializeField] private float panelWidthPercent = 0.96f;
-    [SerializeField] private float panelHeightPercent = 0.88f;
-    [SerializeField] private bool showStackTraceByDefault = false;
-    [SerializeField] private int fontSize = 13;
+	[Header("Atalho")]
+	[SerializeField] private KeyCode toggleKey = KeyCode.F1;
 
-    private enum LogFilter
-    {
-        All,
-        Log,
-        Warning,
-        Error,
-        Exception
-    }
+	[Header("Interface")]
+	[SerializeField] private float panelWidthPercent = 0.96f;
+	[SerializeField] private float panelHeightPercent = 0.88f;
+	[SerializeField] private bool showStackTraceByDefault = false;
+	[SerializeField] private int fontSize = 13;
 
-    private class LogEntry
-    {
-        public string message;
-        public string stackTrace;
-        public string timestamp;
-        public LogType type;
-        public int id;
-    }
+	private enum LogFilter
+	{
+		All,
+		Log,
+		Warning,
+		Error,
+		Exception
+	}
 
-    private readonly List<LogEntry> entries = new List<LogEntry>();
-    private readonly Queue<LogEntry> pendingEntries = new Queue<LogEntry>();
-    private readonly object logLock = new object();
+	private class LogEntry
+	{
+		public string message;
+		public string stackTrace;
+		public string timestamp;
+		public LogType type;
+		public int id;
+	}
 
-    private Vector2 scrollPosition;
-    private LogFilter currentFilter = LogFilter.All;
+	private readonly List<LogEntry> entries = new List<LogEntry>();
+	private readonly Queue<LogEntry> pendingEntries = new Queue<LogEntry>();
+	private readonly object logLock = new object();
 
-    private bool isVisible;
-    private bool showStackTrace;
-    private bool autoScroll = true;
+	private Vector2 scrollPosition;
+	private LogFilter currentFilter = LogFilter.All;
 
-    private int nextId;
-    private int logCount;
-    private int warningCount;
-    private int errorCount;
-    private int exceptionCount;
+	// Começa sempre fechado.
+	private bool isVisible = false;
+	private bool showStackTrace;
+	private bool autoScroll = true;
 
-    private GUIStyle panelStyle;
-    private GUIStyle titleStyle;
-    private GUIStyle entryStyle;
-    private GUIStyle stackStyle;
-    private GUIStyle buttonStyle;
-    private GUIStyle counterStyle;
-    private GUIStyle toolbarStyle;
+	private int nextId;
+	private int logCount;
+	private int warningCount;
+	private int errorCount;
+	private int exceptionCount;
 
-    private bool stylesInitialized;
-    private float lastScreenWidth;
-    private float lastScreenHeight;
+	private GUIStyle panelStyle;
+	private GUIStyle titleStyle;
+	private GUIStyle entryStyle;
+	private GUIStyle stackStyle;
+	private GUIStyle buttonStyle;
+	private GUIStyle counterStyle;
+	private GUIStyle toolbarStyle;
 
-    private const int DefaultMaxEntries = 500;
+	private bool stylesInitialized;
+	private float lastScreenWidth;
+	private float lastScreenHeight;
 
 	private void Awake()
 	{
@@ -84,594 +83,561 @@ public class AndroidDebugConsole : MonoBehaviour
 		if (persistBetweenScenes)
 			DontDestroyOnLoad(gameObject);
 
-		// Por padrão, o console fica desativado.
-		consoleEnabled = PlayerPrefs.GetInt(ConsoleEnabledKey, 0) == 0;
-
-		isVisible = false;
-		showStackTrace = showStackTraceByDefault;
-
 		maxEntries = Mathf.Max(50, maxEntries);
 		fontSize = Mathf.Clamp(fontSize, 10, 24);
 
-		// Só captura logs se o jogador habilitou o console.
-		if (consoleEnabled && captureLogs)
-			Application.logMessageReceivedThreaded += HandleLog;
-	}
+		showStackTrace = showStackTraceByDefault;
 
-	private void OnDestroy()
-    {
-        if (captureLogs)
-            Application.logMessageReceivedThreaded -= HandleLog;
+		// Sempre começa fechado.
+		isVisible = false;
 
-        if (Instance == this)
-            Instance = null;
-    }
-
-	public void SetConsoleEnabled()
-	{
-		consoleEnabled = !consoleEnabled;
-
-		PlayerPrefs.SetInt(ConsoleEnabledKey, consoleEnabled ? 1 : 0);
-		PlayerPrefs.Save();
-
+		// Captura logs independentemente da visibilidade do console.
 		if (captureLogs)
 		{
 			Application.logMessageReceivedThreaded -= HandleLog;
-
-			if (consoleEnabled)
-				Application.logMessageReceivedThreaded += HandleLog;
-		}
-
-		if (!consoleEnabled)
-		{
-			isVisible = false;
-			ClearConsole();
+			Application.logMessageReceivedThreaded += HandleLog;
 		}
 	}
 
-	public bool IsConsoleEnabled()
+	private void OnDestroy()
 	{
-		return consoleEnabled;
+		Application.logMessageReceivedThreaded -= HandleLog;
+
+		if (Instance == this)
+			Instance = null;
 	}
 
 	private void Update()
-    {
-        lock (logLock)
-        {
-            while (pendingEntries.Count > 0)
-            {
-                LogEntry entry = pendingEntries.Dequeue();
+	{
+		// F1 abre e fecha o console.
+		if (Input.GetKeyDown(toggleKey))
+		{
+			ToggleConsole();
+		}
 
-                entries.Add(entry);
+		// Transfere os logs recebidos para a lista principal.
+		lock (logLock)
+		{
+			while (pendingEntries.Count > 0)
+			{
+				LogEntry entry = pendingEntries.Dequeue();
 
-                switch (entry.type)
-                {
-                    case LogType.Warning:
-                        warningCount++;
-                        break;
+				entries.Add(entry);
 
-                    case LogType.Error:
-                    case LogType.Assert:
-                        errorCount++;
-                        break;
+				switch (entry.type)
+				{
+					case LogType.Warning:
+						warningCount++;
+						break;
 
-                    case LogType.Exception:
-                        exceptionCount++;
-                        break;
+					case LogType.Error:
+					case LogType.Assert:
+						errorCount++;
+						break;
 
-                    default:
-                        logCount++;
-                        break;
-                }
+					case LogType.Exception:
+						exceptionCount++;
+						break;
 
-                while (entries.Count > maxEntries)
-                {
-                    RemoveOldestEntry();
-                }
-            }
-        }
-    }
+					default:
+						logCount++;
+						break;
+				}
 
-    private void HandleLog(
-        string condition,
-        string stackTrace,
-        LogType type)
-    {
-        LogEntry entry = new LogEntry
-        {
-            message = condition,
-            stackTrace = stackTrace,
-            type = type,
-            timestamp = DateTime.Now.ToString("HH:mm:ss.fff"),
-            id = System.Threading.Interlocked.Increment(ref nextId)
-        };
+				while (entries.Count > maxEntries)
+				{
+					RemoveOldestEntry();
+				}
+			}
+		}
+	}
 
-        lock (logLock)
-        {
-            pendingEntries.Enqueue(entry);
+	private void HandleLog(
+		string condition,
+		string stackTrace,
+		LogType type)
+	{
+		LogEntry entry = new LogEntry
+		{
+			message = condition,
+			stackTrace = stackTrace,
+			type = type,
+			timestamp = DateTime.Now.ToString("HH:mm:ss.fff"),
+			id = System.Threading.Interlocked.Increment(ref nextId)
+		};
 
-            // Protege a memória caso uma grande quantidade
-            // de logs seja produzida em um intervalo curto.
-            int queueLimit = Mathf.Max(maxEntries * 2, 1000);
+		lock (logLock)
+		{
+			pendingEntries.Enqueue(entry);
 
-            while (pendingEntries.Count > queueLimit)
-                pendingEntries.Dequeue();
-        }
-    }
+			int queueLimit = Mathf.Max(maxEntries * 2, 1000);
 
-    private void RemoveOldestEntry()
-    {
-        if (entries.Count == 0)
-            return;
+			while (pendingEntries.Count > queueLimit)
+				pendingEntries.Dequeue();
+		}
+	}
 
-        LogEntry entry = entries[0];
-        entries.RemoveAt(0);
+	private void RemoveOldestEntry()
+	{
+		if (entries.Count == 0)
+			return;
 
-        switch (entry.type)
-        {
-            case LogType.Warning:
-                warningCount = Mathf.Max(0, warningCount - 1);
-                break;
+		LogEntry entry = entries[0];
+		entries.RemoveAt(0);
 
-            case LogType.Error:
-            case LogType.Assert:
-                errorCount = Mathf.Max(0, errorCount - 1);
-                break;
+		switch (entry.type)
+		{
+			case LogType.Warning:
+				warningCount = Mathf.Max(0, warningCount - 1);
+				break;
 
-            case LogType.Exception:
-                exceptionCount = Mathf.Max(0, exceptionCount - 1);
-                break;
+			case LogType.Error:
+			case LogType.Assert:
+				errorCount = Mathf.Max(0, errorCount - 1);
+				break;
 
-            default:
-                logCount = Mathf.Max(0, logCount - 1);
-                break;
-        }
-    }
+			case LogType.Exception:
+				exceptionCount = Mathf.Max(0, exceptionCount - 1);
+				break;
 
-    private void ClearConsole()
-    {
-        lock (logLock)
-        {
-            entries.Clear();
-            pendingEntries.Clear();
+			default:
+				logCount = Mathf.Max(0, logCount - 1);
+				break;
+		}
+	}
 
-            logCount = 0;
-            warningCount = 0;
-            errorCount = 0;
-            exceptionCount = 0;
-        }
+	private void ClearConsole()
+	{
+		lock (logLock)
+		{
+			entries.Clear();
+			pendingEntries.Clear();
 
-        scrollPosition = Vector2.zero;
-    }
+			logCount = 0;
+			warningCount = 0;
+			errorCount = 0;
+			exceptionCount = 0;
+		}
 
-    private void CopyConsole()
-    {
-        StringBuilder builder = new StringBuilder();
+		scrollPosition = Vector2.zero;
+	}
 
-        builder.AppendLine("=== UNITY DEBUG CONSOLE ===");
-        builder.AppendLine("Data: " + DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"));
-        builder.AppendLine("Dispositivo: " + SystemInfo.deviceModel);
-        builder.AppendLine("Sistema: " + SystemInfo.operatingSystem);
-        builder.AppendLine("Unity: " + Application.unityVersion);
-        builder.AppendLine("Plataforma: " + Application.platform);
-        builder.AppendLine("FPS: " + (Time.deltaTime > 0f
-            ? (1f / Time.deltaTime).ToString("F1")
-            : "N/A"));
+	private void CopyConsole()
+	{
+		StringBuilder builder = new StringBuilder();
 
-        builder.AppendLine();
-        builder.AppendLine(
-            $"Logs: {logCount} | Warnings: {warningCount} | " +
-            $"Errors: {errorCount} | Exceptions: {exceptionCount}");
+		builder.AppendLine("=== UNITY DEBUG CONSOLE ===");
+		builder.AppendLine("Data: " + DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"));
+		builder.AppendLine("Dispositivo: " + SystemInfo.deviceModel);
+		builder.AppendLine("Sistema: " + SystemInfo.operatingSystem);
+		builder.AppendLine("Unity: " + Application.unityVersion);
+		builder.AppendLine("Plataforma: " + Application.platform);
+		builder.AppendLine("FPS: " + (Time.deltaTime > 0f
+			? (1f / Time.deltaTime).ToString("F1")
+			: "N/A"));
 
-        builder.AppendLine();
+		builder.AppendLine();
 
-        lock (logLock)
-        {
-            foreach (LogEntry entry in entries)
-            {
-                builder.AppendLine(
-                    $"[{entry.timestamp}] [{GetTypeName(entry.type)}]");
+		builder.AppendLine(
+			$"Logs: {logCount} | Warnings: {warningCount} | " +
+			$"Errors: {errorCount} | Exceptions: {exceptionCount}");
 
-                builder.AppendLine(entry.message);
+		builder.AppendLine();
 
-                if (!string.IsNullOrEmpty(entry.stackTrace))
-                {
-                    builder.AppendLine("--- STACK TRACE ---");
-                    builder.AppendLine(entry.stackTrace);
-                }
+		lock (logLock)
+		{
+			foreach (LogEntry entry in entries)
+			{
+				builder.AppendLine(
+					$"[{entry.timestamp}] [{GetTypeName(entry.type)}]");
 
-                builder.AppendLine();
-            }
+				builder.AppendLine(entry.message);
 
-            // Inclui mensagens que ainda não foram transferidas
-            // para a lista principal.
-            foreach (LogEntry entry in pendingEntries)
-            {
-                builder.AppendLine(
-                    $"[{entry.timestamp}] [{GetTypeName(entry.type)}]");
+				if (!string.IsNullOrEmpty(entry.stackTrace))
+				{
+					builder.AppendLine("--- STACK TRACE ---");
+					builder.AppendLine(entry.stackTrace);
+				}
 
-                builder.AppendLine(entry.message);
+				builder.AppendLine();
+			}
 
-                if (!string.IsNullOrEmpty(entry.stackTrace))
-                {
-                    builder.AppendLine("--- STACK TRACE ---");
-                    builder.AppendLine(entry.stackTrace);
-                }
+			foreach (LogEntry entry in pendingEntries)
+			{
+				builder.AppendLine(
+					$"[{entry.timestamp}] [{GetTypeName(entry.type)}]");
 
-                builder.AppendLine();
-            }
-        }
+				builder.AppendLine(entry.message);
 
-        GUIUtility.systemCopyBuffer = builder.ToString();
-    }
+				if (!string.IsNullOrEmpty(entry.stackTrace))
+				{
+					builder.AppendLine("--- STACK TRACE ---");
+					builder.AppendLine(entry.stackTrace);
+				}
 
-    private string GetTypeName(LogType type)
-    {
-        switch (type)
-        {
-            case LogType.Warning:
-                return "WARNING";
+				builder.AppendLine();
+			}
+		}
 
-            case LogType.Error:
-                return "ERROR";
+		GUIUtility.systemCopyBuffer = builder.ToString();
+	}
 
-            case LogType.Assert:
-                return "ASSERT";
+	private string GetTypeName(LogType type)
+	{
+		switch (type)
+		{
+			case LogType.Warning:
+				return "WARNING";
 
-            case LogType.Exception:
-                return "EXCEPTION";
+			case LogType.Error:
+				return "ERROR";
 
-            default:
-                return "LOG";
-        }
-    }
+			case LogType.Assert:
+				return "ASSERT";
 
-    private bool MatchesFilter(LogType type)
-    {
-        switch (currentFilter)
-        {
-            case LogFilter.Log:
-                return type == LogType.Log;
+			case LogType.Exception:
+				return "EXCEPTION";
 
-            case LogFilter.Warning:
-                return type == LogType.Warning;
+			default:
+				return "LOG";
+		}
+	}
 
-            case LogFilter.Error:
-                return type == LogType.Error ||
-                       type == LogType.Assert;
+	private bool MatchesFilter(LogType type)
+	{
+		switch (currentFilter)
+		{
+			case LogFilter.Log:
+				return type == LogType.Log;
 
-            case LogFilter.Exception:
-                return type == LogType.Exception;
+			case LogFilter.Warning:
+				return type == LogType.Warning;
 
-            default:
-                return true;
-        }
-    }
+			case LogFilter.Error:
+				return type == LogType.Error ||
+					   type == LogType.Assert;
 
-    private void InitializeStyles()
-    {
-        if (stylesInitialized &&
-            lastScreenWidth == Screen.width &&
-            lastScreenHeight == Screen.height)
-        {
-            return;
-        }
+			case LogFilter.Exception:
+				return type == LogType.Exception;
 
-        lastScreenWidth = Screen.width;
-        lastScreenHeight = Screen.height;
+			default:
+				return true;
+		}
+	}
 
-        panelStyle = new GUIStyle(GUI.skin.box)
-        {
-            padding = new RectOffset(10, 10, 8, 8)
-        };
+	private void InitializeStyles()
+	{
+		if (stylesInitialized &&
+			lastScreenWidth == Screen.width &&
+			lastScreenHeight == Screen.height)
+		{
+			return;
+		}
 
-        panelStyle.normal.background = MakeTexture(
-            new Color(0.07f, 0.08f, 0.09f, 0.98f));
+		lastScreenWidth = Screen.width;
+		lastScreenHeight = Screen.height;
 
-        titleStyle = new GUIStyle(GUI.skin.label)
-        {
-            fontSize = fontSize + 4,
-            fontStyle = FontStyle.Bold,
-            alignment = TextAnchor.MiddleLeft,
-            wordWrap = false
-        };
-        titleStyle.normal.textColor = Color.white;
+		panelStyle = new GUIStyle(GUI.skin.box)
+		{
+			padding = new RectOffset(10, 10, 8, 8)
+		};
 
-        entryStyle = new GUIStyle(GUI.skin.label)
-        {
-            fontSize = fontSize,
-            wordWrap = true,
-            richText = false,
-            alignment = TextAnchor.UpperLeft,
-            padding = new RectOffset(4, 4, 4, 4)
-        };
+		panelStyle.normal.background = MakeTexture(
+			new Color(0.07f, 0.08f, 0.09f, 0.98f));
 
-        stackStyle = new GUIStyle(entryStyle)
-        {
-            fontSize = Mathf.Max(10, fontSize - 1),
-            wordWrap = true,
-            padding = new RectOffset(10, 4, 2, 8)
-        };
+		titleStyle = new GUIStyle(GUI.skin.label)
+		{
+			fontSize = fontSize + 4,
+			fontStyle = FontStyle.Bold,
+			alignment = TextAnchor.MiddleLeft,
+			wordWrap = false
+		};
 
-        buttonStyle = new GUIStyle(GUI.skin.button)
-        {
-            fontSize = fontSize,
-            wordWrap = true,
-            padding = new RectOffset(6, 6, 8, 8),
-            fixedHeight = 40
-        };
+		titleStyle.normal.textColor = Color.white;
 
-        counterStyle = new GUIStyle(GUI.skin.label)
-        {
-            fontSize = fontSize,
-            alignment = TextAnchor.MiddleLeft,
-            wordWrap = true
-        };
-        counterStyle.normal.textColor = Color.white;
+		entryStyle = new GUIStyle(GUI.skin.label)
+		{
+			fontSize = fontSize,
+			wordWrap = true,
+			richText = false,
+			alignment = TextAnchor.UpperLeft,
+			padding = new RectOffset(4, 4, 4, 4)
+		};
 
-        toolbarStyle = new GUIStyle(GUI.skin.button)
-        {
-            fontSize = Mathf.Max(10, fontSize - 1),
-            fixedHeight = 36,
-            padding = new RectOffset(4, 4, 4, 4)
-        };
+		stackStyle = new GUIStyle(entryStyle)
+		{
+			fontSize = Mathf.Max(10, fontSize - 1),
+			wordWrap = true,
+			padding = new RectOffset(10, 4, 2, 8)
+		};
 
-        stylesInitialized = true;
-    }
+		buttonStyle = new GUIStyle(GUI.skin.button)
+		{
+			fontSize = fontSize,
+			wordWrap = true,
+			padding = new RectOffset(6, 6, 8, 8),
+			fixedHeight = 40
+		};
 
-    private Texture2D MakeTexture(Color color)
-    {
-        Texture2D texture = new Texture2D(1, 1);
-        texture.SetPixel(0, 0, color);
-        texture.Apply();
-        return texture;
-    }
+		counterStyle = new GUIStyle(GUI.skin.label)
+		{
+			fontSize = fontSize,
+			alignment = TextAnchor.MiddleLeft,
+			wordWrap = true
+		};
 
-    private Color GetLogColor(LogType type)
-    {
-        switch (type)
-        {
-            case LogType.Warning:
-                return new Color(1f, 0.78f, 0.20f);
+		counterStyle.normal.textColor = Color.white;
 
-            case LogType.Error:
-            case LogType.Assert:
-                return new Color(1f, 0.35f, 0.35f);
+		toolbarStyle = new GUIStyle(GUI.skin.button)
+		{
+			fontSize = Mathf.Max(10, fontSize - 1),
+			fixedHeight = 36,
+			padding = new RectOffset(4, 4, 4, 4)
+		};
 
-            case LogType.Exception:
-                return new Color(1f, 0.45f, 0.75f);
+		stylesInitialized = true;
+	}
 
-            default:
-                return new Color(0.78f, 0.88f, 0.95f);
-        }
-    }
+	private Texture2D MakeTexture(Color color)
+	{
+		Texture2D texture = new Texture2D(1, 1);
+		texture.SetPixel(0, 0, color);
+		texture.Apply();
+		return texture;
+	}
 
-    private void OnGUI()
-    {
-		if (!consoleEnabled)
+	private Color GetLogColor(LogType type)
+	{
+		switch (type)
+		{
+			case LogType.Warning:
+				return new Color(1f, 0.78f, 0.20f);
+
+			case LogType.Error:
+			case LogType.Assert:
+				return new Color(1f, 0.35f, 0.35f);
+
+			case LogType.Exception:
+				return new Color(1f, 0.45f, 0.75f);
+
+			default:
+				return new Color(0.78f, 0.88f, 0.95f);
+		}
+	}
+
+	private void OnGUI()
+	{
+		// Não desenha absolutamente nada quando fechado.
+		if (!isVisible)
 			return;
 
 		InitializeStyles();
 
-        float screenWidth = Screen.width;
-        float screenHeight = Screen.height;
+		float screenWidth = Screen.width;
+		float screenHeight = Screen.height;
 
-        if (!isVisible)
-        {
-            float buttonWidth = Mathf.Min(170f, screenWidth * 0.4f);
-            float buttonHeight = 44f;
+		float width = Mathf.Clamp(
+			screenWidth * panelWidthPercent, 280f, screenWidth);
 
-            if (GUI.Button(
-                new Rect(8f, 100f, buttonWidth, buttonHeight),
-                "ABRIR CONSOLE", buttonStyle))
-            {
-                isVisible = true;
-            }
+		float height = Mathf.Clamp(
+			screenHeight * panelHeightPercent, 300f, screenHeight);
 
-            return;
-        }
+		width = Mathf.Min(width, screenWidth - 8f);
+		height = Mathf.Min(height, screenHeight - 8f);
 
-        float width = Mathf.Clamp(
-            screenWidth * panelWidthPercent, 280f, screenWidth);
+		Rect panelRect = new Rect(
+			(screenWidth - width) * 0.5f,
+			(screenHeight - height) * 0.5f,
+			width,
+			height);
 
-        float height = Mathf.Clamp(
-            screenHeight * panelHeightPercent, 300f, screenHeight);
+		GUILayout.BeginArea(panelRect, panelStyle);
 
-        width = Mathf.Min(width, screenWidth - 8f);
-        height = Mathf.Min(height, screenHeight - 8f);
+		DrawHeader(width);
+		DrawCounters();
+		DrawToolbar();
 
-        Rect panelRect = new Rect(
-            (screenWidth - width) * 0.5f,
-            (screenHeight - height) * 0.5f,
-            width,
-            height);
+		GUILayout.Space(5f);
 
-        GUILayout.BeginArea(panelRect, panelStyle);
+		DrawEntries(width);
 
-        DrawHeader(width);
-        DrawCounters();
-        DrawToolbar();
+		GUILayout.Space(5f);
+		DrawFooter();
 
-        GUILayout.Space(5f);
+		GUILayout.EndArea();
+	}
 
-        DrawEntries(width);
+	private void DrawHeader(float width)
+	{
+		GUILayout.BeginHorizontal();
 
-        GUILayout.Space(5f);
-        DrawFooter();
+		GUILayout.Label("DEBUG CONSOLE", titleStyle,
+			GUILayout.Height(38f));
 
-        GUILayout.EndArea();
-    }
+		GUILayout.FlexibleSpace();
 
-    private void DrawHeader(float width)
-    {
-        GUILayout.BeginHorizontal();
+		if (GUILayout.Button("FECHAR", buttonStyle,
+			GUILayout.Width(Mathf.Min(100f, width * 0.30f))))
+		{
+			isVisible = false;
+		}
 
-        GUILayout.Label("DEBUG CONSOLE", titleStyle,
-            GUILayout.Height(38f));
+		GUILayout.EndHorizontal();
+	}
 
-        GUILayout.FlexibleSpace();
+	private void DrawCounters()
+	{
+		lock (logLock)
+		{
+			GUILayout.Label(
+				$"LOGS: {logCount}   |   WARN: {warningCount}   |   " +
+				$"ERROR: {errorCount}   |   EXC: {exceptionCount}",
+				counterStyle);
+		}
+	}
 
-        if (GUILayout.Button("FECHAR", buttonStyle,
-            GUILayout.Width(Mathf.Min(100f, width * 0.30f))))
-        {
-            isVisible = false;
-        }
+	private void DrawToolbar()
+	{
+		GUILayout.BeginHorizontal();
 
-        GUILayout.EndHorizontal();
-    }
+		DrawFilterButton("TODOS", LogFilter.All);
+		DrawFilterButton("LOGS", LogFilter.Log);
+		DrawFilterButton("WARN", LogFilter.Warning);
+		DrawFilterButton("ERROR", LogFilter.Error);
+		DrawFilterButton("EXC", LogFilter.Exception);
 
-    private void DrawCounters()
-    {
-        lock (logLock)
-        {
-            GUILayout.Label(
-                $"LOGS: {logCount}   |   WARN: {warningCount}   |   " +
-                $"ERROR: {errorCount}   |   EXC: {exceptionCount}",
-                counterStyle);
-        }
-    }
+		GUILayout.EndHorizontal();
 
-    private void DrawToolbar()
-    {
-        GUILayout.BeginHorizontal();
+		GUILayout.BeginHorizontal();
 
-        DrawFilterButton("TODOS", LogFilter.All);
-        DrawFilterButton("LOGS", LogFilter.Log);
-        DrawFilterButton("WARN", LogFilter.Warning);
-        DrawFilterButton("ERROR", LogFilter.Error);
-        DrawFilterButton("EXC", LogFilter.Exception);
+		bool newStackState = GUILayout.Toggle(
+			showStackTrace,
+			"Mostrar Stack Trace",
+			GUI.skin.toggle,
+			GUILayout.MinHeight(32f));
 
-        GUILayout.EndHorizontal();
+		if (newStackState != showStackTrace)
+			showStackTrace = newStackState;
 
-        GUILayout.BeginHorizontal();
+		autoScroll = GUILayout.Toggle(
+			autoScroll,
+			"Auto-scroll",
+			GUI.skin.toggle,
+			GUILayout.MinHeight(32f));
 
-        bool newStackState = GUILayout.Toggle(
-            showStackTrace,
-            "Mostrar Stack Trace",
-            GUI.skin.toggle,
-            GUILayout.MinHeight(32f));
+		GUILayout.EndHorizontal();
+	}
 
-        if (newStackState != showStackTrace)
-            showStackTrace = newStackState;
+	private void DrawFilterButton(string label, LogFilter filter)
+	{
+		bool selected = currentFilter == filter;
 
-        autoScroll = GUILayout.Toggle(
-            autoScroll,
-            "Auto-scroll",
-            GUI.skin.toggle,
-            GUILayout.MinHeight(32f));
+		Color oldColor = GUI.backgroundColor;
 
-        GUILayout.EndHorizontal();
-    }
+		GUI.backgroundColor = selected
+			? new Color(0.25f, 0.65f, 0.35f)
+			: Color.white;
 
-    private void DrawFilterButton(string label, LogFilter filter)
-    {
-        bool selected = currentFilter == filter;
+		if (GUILayout.Button(label, toolbarStyle,
+			GUILayout.ExpandWidth(true)))
+		{
+			currentFilter = filter;
+			scrollPosition = Vector2.zero;
+		}
 
-        Color oldColor = GUI.backgroundColor;
-        GUI.backgroundColor = selected
-            ? new Color(0.25f, 0.65f, 0.35f)
-            : Color.white;
+		GUI.backgroundColor = oldColor;
+	}
 
-        if (GUILayout.Button(label, toolbarStyle,
-            GUILayout.ExpandWidth(true)))
-        {
-            currentFilter = filter;
-            scrollPosition = Vector2.zero;
-        }
+	private void DrawEntries(float width)
+	{
+		float contentWidth = Mathf.Max(100f, width - 48f);
 
-        GUI.backgroundColor = oldColor;
-    }
+		lock (logLock)
+		{
+			int visibleCount = 0;
 
-    private void DrawEntries(float width)
-    {
-        float contentWidth = Mathf.Max(100f, width - 48f);
+			for (int i = 0; i < entries.Count; i++)
+			{
+				if (MatchesFilter(entries[i].type))
+					visibleCount++;
+			}
 
-        lock (logLock)
-        {
-            int visibleCount = 0;
+			GUILayout.Label(
+				$"REGISTROS ({visibleCount})",
+				counterStyle,
+				GUILayout.Height(24f));
 
-            for (int i = 0; i < entries.Count; i++)
-            {
-                if (MatchesFilter(entries[i].type))
-                    visibleCount++;
-            }
+			float viewHeight = Mathf.Max(
+				60f,
+				panelRectHeightForEntries());
 
-            GUILayout.Label(
-                $"REGISTROS ({visibleCount})",
-                counterStyle,
-                GUILayout.Height(24f));
+			scrollPosition = GUILayout.BeginScrollView(
+				scrollPosition,
+				true,
+				true,
+				GUILayout.ExpandHeight(true),
+				GUILayout.MinHeight(viewHeight));
 
-            float viewHeight = Mathf.Max(
-                60f,
-                panelRectHeightForEntries());
+			for (int i = 0; i < entries.Count; i++)
+			{
+				LogEntry entry = entries[i];
 
-            scrollPosition = GUILayout.BeginScrollView(
-                scrollPosition,
-                true,
-                true,
-                GUILayout.ExpandHeight(true),
-                GUILayout.MinHeight(viewHeight));
+				if (!MatchesFilter(entry.type))
+					continue;
 
-            for (int i = 0; i < entries.Count; i++)
-            {
-                LogEntry entry = entries[i];
+				DrawEntry(entry, contentWidth);
+			}
 
-                if (!MatchesFilter(entry.type))
-                    continue;
+			GUILayout.EndScrollView();
+		}
 
-                DrawEntry(entry, contentWidth);
-            }
+		if (autoScroll && Event.current.type == EventType.Repaint)
+		{
+			scrollPosition.y = float.MaxValue;
+		}
+	}
 
-            GUILayout.EndScrollView();
-        }
+	private float panelRectHeightForEntries()
+	{
+		return Mathf.Max(60f, Screen.height * 0.35f);
+	}
 
-        if (autoScroll && Event.current.type == EventType.Repaint)
-        {
-            // O ajuste real acontece no próximo evento de layout.
-            // Mantém o console no final durante a captura.
-            scrollPosition.y = float.MaxValue;
-        }
-    }
+	private void DrawEntry(LogEntry entry, float width)
+	{
+		Color oldColor = GUI.contentColor;
 
-    private float panelRectHeightForEntries()
-    {
-        return Mathf.Max(60f, Screen.height * 0.35f);
-    }
+		GUI.contentColor = GetLogColor(entry.type);
 
-    private void DrawEntry(LogEntry entry, float width)
-    {
-        Color oldColor = GUI.contentColor;
-        GUI.contentColor = GetLogColor(entry.type);
+		string header =
+			$"[{entry.timestamp}] [{GetTypeName(entry.type)}]";
 
-        string header =
-            $"[{entry.timestamp}] [{GetTypeName(entry.type)}]";
+		GUILayout.Label(header, entryStyle,
+			GUILayout.Width(width));
 
-        GUILayout.Label(header, entryStyle,
-            GUILayout.Width(width));
+		GUI.contentColor = Color.white;
 
-        GUI.contentColor = Color.white;
+		GUILayout.Label(entry.message, entryStyle,
+			GUILayout.Width(width));
 
-        GUILayout.Label(entry.message, entryStyle,
-            GUILayout.Width(width));
+		if (showStackTrace && !string.IsNullOrEmpty(entry.stackTrace))
+		{
+			GUI.contentColor = new Color(0.72f, 0.76f, 0.80f);
 
-        if (showStackTrace && !string.IsNullOrEmpty(entry.stackTrace))
-        {
-            GUI.contentColor = new Color(0.72f, 0.76f, 0.80f);
+			GUILayout.Label(
+				entry.stackTrace,
+				stackStyle,
+				GUILayout.Width(width));
 
-            GUILayout.Label(
-                entry.stackTrace,
-                stackStyle,
-                GUILayout.Width(width));
+			GUI.contentColor = Color.white;
+		}
 
-            GUI.contentColor = Color.white;
-        }
+		GUI.contentColor = oldColor;
 
-        GUI.contentColor = oldColor;
+		GUILayout.Space(5f);
 
-        GUILayout.Space(5f);
-        GUILayout.Box("", GUILayout.ExpandWidth(true),
-            GUILayout.Height(1f));
-    }
+		GUILayout.Box("", GUILayout.ExpandWidth(true),
+			GUILayout.Height(1f));
+	}
 
 	private void DrawFooter()
 	{
@@ -699,22 +665,34 @@ public class AndroidDebugConsole : MonoBehaviour
 	}
 
 	public void OpenConsole()
-    {
-        isVisible = true;
-    }
+	{
+		isVisible = true;
+	}
 
-    public void CloseConsole()
-    {
-        isVisible = false;
-    }
+	public void CloseConsole()
+	{
+		isVisible = false;
+	}
 
-    public void ToggleConsole()
-    {
-        isVisible = !isVisible;
-    }
+	public void ToggleConsole()
+	{
+		isVisible = !isVisible;
+	}
 
-    public void AddDiagnostic(string message)
-    {
-        Debug.Log("[DIAGNOSTICO] " + message);
-    }
+	public void AddDiagnostic(string message)
+	{
+		Debug.Log("[DIAGNOSTICO] " + message);
+	}
+
+	// Mantidos para compatibilidade com chamadas externas antigas.
+	// Não desativam mais a captura de logs.
+	public void SetConsoleEnabled()
+	{
+		ToggleConsole();
+	}
+
+	public bool IsConsoleEnabled()
+	{
+		return captureLogs;
+	}
 }

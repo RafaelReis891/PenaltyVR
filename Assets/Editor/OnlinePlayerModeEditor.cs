@@ -63,6 +63,7 @@ public static class OnlinePlayerModeEditor
 
 		questFootKick.myRole = role;
 		questFootKick.playerDisplayName = displayName;
+		questFootKick.playerLocalLabel.text = displayName;
 
 		EditorUtility.SetDirty(questFootKick);
 
