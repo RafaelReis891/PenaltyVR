@@ -1,0 +1,800 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Painel de Controle - Football VR</title>
+    <style>
+        :root {
+            --bg-color: #121212;
+            --panel-bg: #1e1e1e;
+            --text-color: #e0e0e0;
+            --accent-color: #00bcd4;
+            --success-color: #4caf50;
+            --danger-color: #f44336;
+            --warning-color: #ff9800;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+        }
+        .container {
+            width: 100%;
+            max-width: 800px;
+            background-color: var(--panel-bg);
+            border-radius: 12px;
+            padding: 24px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+        }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+            padding-bottom: 16px;
+            border-bottom: 1px solid #333;
+        }
+        .status-badge {
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .status-badge.online { background-color: rgba(76, 175, 80, 0.2); color: var(--success-color); }
+        .status-badge.offline { background-color: rgba(244, 67, 54, 0.2); color: var(--danger-color); }
+        .status-dot { width: 10px; height: 10px; border-radius: 50%; background-color: currentColor; }
+
+        .control-panel {
+            text-align: center;
+            margin-bottom: 32px;
+            padding: 20px;
+            background-color: #252525;
+            border-radius: 8px;
+            border: 1px dashed #444;
+        }
+        .btn {
+            border: none;
+            padding: 12px 24px;
+            font-size: 1rem;
+            font-weight: bold;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-transform: uppercase;
+            margin: 4px;
+        }
+        .btn:hover { transform: translateY(-2px); }
+        .btn:disabled { background-color: #555 !important; color: #888 !important; cursor: not-allowed; transform: none; opacity: 0.6; }
+        .btn-reset { background-color: var(--warning-color); color: #000; }
+        .btn-start { background-color: var(--success-color); color: #fff; }
+        .btn-end { background-color: var(--danger-color); color: #fff; }
+
+        .scoreboard {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 24px;
+            margin-bottom: 32px;
+        }
+        .player-card {
+            background-color: #2a2a2a;
+            padding: 20px;
+            border-radius: 8px;
+            text-align: center;
+            border: 2px solid transparent;
+            transition: border-color 0.3s;
+        }
+        .player-card.active-turn { border-color: var(--accent-color); box-shadow: 0 0 15px rgba(0, 188, 212, 0.3); }
+        .player-name { font-size: 1.2rem; font-weight: bold; margin-bottom: 8px; display: flex; justify-content: center; align-items: center; gap: 8px; }
+        .player-score { font-size: 3.5rem; font-weight: 900; margin: 10px 0; color: var(--accent-color); }
+        .player-shots { font-size: 0.9rem; color: #aaa; }
+
+        .match-info {
+            text-align: center;
+            padding: 20px;
+            background-color: #252525;
+            border-radius: 8px;
+        }
+        .match-status {
+            font-size: 1.5rem;
+            font-weight: bold;
+            margin-bottom: 8px;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+        .match-status.waiting { color: var(--warning-color); }
+        .match-status.playing { color: var(--success-color); }
+        .match-status.finished { color: var(--accent-color); }
+        .match-status.suspended { color: var(--danger-color); }
+
+        .timer {
+            font-size: 4rem;
+            font-weight: 900;
+            font-variant-numeric: tabular-nums;
+            margin: 16px 0;
+            color: var(--text-color);
+        }
+        .timer.danger { color: var(--danger-color); animation: pulse 1s infinite; }
+        .winner-text {
+            font-size: 1.8rem;
+            font-weight: bold;
+            color: var(--success-color);
+            margin-top: 16px;
+        }
+        .message-box {
+            margin-top: 16px;
+            padding: 12px;
+            border-radius: 6px;
+            text-align: center;
+            font-weight: bold;
+            display: none;
+        }
+        .message-box.success { background-color: rgba(76, 175, 80, 0.2); color: var(--success-color); display: block; }
+        .message-box.error { background-color: rgba(244, 67, 54, 0.2); color: var(--danger-color); display: block; }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        @media (max-width: 600px) {
+            .scoreboard { grid-template-columns: 1fr; }
+            .btn { width: 100%; margin: 8px 0; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="header">
+        <div>
+            <h2 style="margin: 0;">🏆 Painel de Controle</h2>
+            <small style="color: #888;">Sala: <span id="roomCodeDisplay">ARENA01</span></small>
+        </div>
+        <div id="connectionStatus" class="status-badge offline">
+            <span class="status-dot"></span>
+            <span id="connectionText">Desconectado</span>
+        </div>
+    </div>
+
+    <div class="control-panel">
+        <p style="margin-top: 0; color: #aaa; margin-bottom: 16px;">Gerencie o fluxo da partida. O início só é permitido com ambos conectados.</p>
+        <div style="display: flex; justify-content: center; flex-wrap: wrap;">
+            <button id="btnReset" class="btn btn-reset">1. Resetar Partida</button>
+            <button id="btnStart" class="btn btn-start" disabled title="Aguardando ambos os jogadores conectarem">2. Iniciar Partida</button>
+            <button id="btnEndMatch" class="btn btn-end">3. Encerrar Partida</button>
+            <button id="btnRestart" class="btn" style="background-color: #9c27b0; color: #fff;">4. Reiniciar Partida</button>
+        </div>
+        <div id="messageBox" class="message-box"></div>
+    </div>
+
+    <div class="scoreboard">
+        <div class="player-card" id="cardPlayer1">
+            <div class="player-name">
+                <span id="player1Name">Jogador 1</span>
+                <span id="player1Online" class="status-dot" style="background-color: #555;" title="Desconectado"></span>
+            </div>
+            <div class="player-score" id="player1Score">0</div>
+            <div class="player-shots">Chutes: <span id="player1Shots">0</span>/5</div>
+        </div>
+
+        <div class="player-card" id="cardPlayer2">
+            <div class="player-name">
+                <span id="player2Name">Jogador 2</span>
+                <span id="player2Online" class="status-dot" style="background-color: #555;" title="Desconectado"></span>
+            </div>
+            <div class="player-score" id="player2Score">0</div>
+            <div class="player-shots">Chutes: <span id="player2Shots">0</span>/5</div>
+        </div>
+    </div>
+
+    <div class="match-info">
+        <div id="matchStatus" class="match-status waiting">AGUARDANDO</div>
+        <div id="timer" class="timer">--:--</div>
+        <div id="turnInfo" style="color: #aaa; font-size: 1.1rem;">Aguardando início da partida...</div>
+        <div id="winnerText" class="winner-text"></div>
+    </div>
+
+    <div class="qr-panel">
+
+    <h3>📱 Conectar pelo celular</h3>
+
+    <p class="qr-instructions">
+        Escaneie o QR Code usando a câmera do celular.
+        O dispositivo precisa estar conectado à mesma rede Wi-Fi.
+    </p>
+
+    <div class="qr-code-container">
+        <div id="qrCode"></div>
+    </div>
+
+    <div class="qr-url" id="qrUrl">
+        Gerando endereço...
+    </div>
+
+    <p class="qr-instructions">
+        Football VR - Acesso pela rede local
+    </p>
+
+
+<div style="text-align: center; margin-top: 10px;">
+    <button
+        id="btnClearCache"
+        class="btn btn-clear-cache"
+        disabled
+        title="Disponível somente quando a partida estiver encerrada e os jogadores desconectados">
+        🧹 Limpar Cache Firebase
+    </button>
+    <div style="font-size: 0.72rem; color: #666; margin-top: 4px;">
+        Ferramenta de manutenção do sistema
+    </div>
+</div>
+
+
+</div>
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/13.2.0/firebase-app.js";
+    import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/13.2.0/firebase-auth.js";
+    import {
+        getDatabase, ref, get, update, onValue, serverTimestamp, runTransaction
+    } from "https://www.gstatic.com/firebasejs/13.2.0/firebase-database.js";
+
+    const firebaseConfig = {
+        apiKey: "AIzaSyDR_txGYREP2FDfkSdy4DwDIfcFHqoV1aM",
+        authDomain: "elasnojogo-7a990.firebaseapp.com",
+        databaseURL: "https://elasnojogo-7a990-default-rtdb.firebaseio.com",
+        projectId: "elasnojogo-7a990",
+        storageBucket: "elasnojogo-7a990.firebasestorage.app",
+        messagingSenderId: "258174385657",
+        appId: "1:258174385657:web:429ffc560317a795e61128"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const database = getDatabase(app);
+
+    const FIXED_ROOM_CODE = "ARENA01";
+    const TURN_DURATION_SECONDS = 30;
+
+    let serverTimeOffset = 0;
+    let currentMatch = null;
+    let currentScore = { Jogador1: 0, Jogador2: 0 };
+    let currentPlayers = {};
+    let timerInterval = null;
+
+    const ui = {
+        connectionStatus: document.getElementById("connectionStatus"),
+        connectionText: document.getElementById("connectionText"),
+        btnReset: document.getElementById("btnReset"),
+        btnStart: document.getElementById("btnStart"),
+        btnEndMatch: document.getElementById("btnEndMatch"),
+        btnRestart: document.getElementById("btnRestart"),
+        btnClearCache: document.getElementById("btnClearCache"),
+        messageBox: document.getElementById("messageBox"),
+        
+        player1Name: document.getElementById("player1Name"),
+        player1Online: document.getElementById("player1Online"),
+        player1Score: document.getElementById("player1Score"),
+        player1Shots: document.getElementById("player1Shots"),
+        cardPlayer1: document.getElementById("cardPlayer1"),
+
+        player2Name: document.getElementById("player2Name"),
+        player2Online: document.getElementById("player2Online"),
+        player2Score: document.getElementById("player2Score"),
+        player2Shots: document.getElementById("player2Shots"),
+        cardPlayer2: document.getElementById("cardPlayer2"),
+
+        matchStatus: document.getElementById("matchStatus"),
+        timer: document.getElementById("timer"),
+        turnInfo: document.getElementById("turnInfo"),
+        winnerText: document.getElementById("winnerText")
+    };
+
+    function generateAccessQRCode() {
+
+    const qrContainer = document.getElementById("qrCode");
+    const qrUrl = document.getElementById("qrUrl");
+
+    if (!qrContainer || !qrUrl) return;
+
+    // Usa o endereço pelo qual o painel foi aberto.
+    const accessURL = window.location.href;
+
+    qrContainer.innerHTML = "";
+
+    new QRCode(qrContainer, {
+        text: accessURL,
+        width: 220,
+        height: 220,
+        colorDark: "#000000",
+        colorLight: "#ffffff",
+        correctLevel: QRCode.CorrectLevel.H
+    });
+
+    qrUrl.textContent = accessURL;
+
+    console.log("[FootballVR] QR Code gerado:", accessURL);
+}
+
+    function setMessage(msg, type) {
+        ui.messageBox.textContent = msg;
+        ui.messageBox.className = `message-box ${type}`;
+        setTimeout(() => { ui.messageBox.className = "message-box"; }, 4000);
+    }
+
+    function setConnection(connected) {
+        ui.connectionStatus.className = `status-badge ${connected ? "online" : "offline"}`;
+        ui.connectionText.textContent = connected ? "Painel Online" : "Desconectado";
+    }
+
+
+let isClearingFirebaseCache = false;
+
+function updateClearCacheButton() {
+    const status = currentMatch?.Status;
+
+    const matchIsStopped =
+        status === "Waiting" || status === "Finished";
+
+    const p1Online = currentPlayers?.Jogador1?.Connected === true;
+    const p2Online = currentPlayers?.Jogador2?.Connected === true;
+
+    const playersDisconnected = !p1Online && !p2Online;
+
+    const canClear =
+        matchIsStopped &&
+        playersDisconnected &&
+        !isClearingFirebaseCache;
+
+    ui.btnClearCache.disabled = !canClear;
+
+    if (isClearingFirebaseCache) {
+        ui.btnClearCache.textContent = "Limpando Firebase...";
+    } else {
+        ui.btnClearCache.textContent = "🧹 Limpar Cache Firebase";
+    }
+
+    if (!matchIsStopped) {
+        ui.btnClearCache.title =
+            "Não é permitido limpar durante uma partida em andamento ou suspensa.";
+    } else if (!playersDisconnected) {
+        ui.btnClearCache.title =
+            "Desconecte os dois jogadores antes de limpar.";
+    } else {
+        ui.btnClearCache.title =
+            "Limpar todos os dados da sala ARENA01.";
+    }
+}
+
+
+async function clearFirebaseCache() {
+
+    if (ui.btnClearCache.disabled) return;
+
+    const confirmation = confirm(
+        "ATENÇÃO!\n\n" +
+        "Você está prestes a apagar todos os dados da sala ARENA01.\n\n" +
+        "Serão removidos:\n" +
+        "- Dados dos jogadores\n" +
+        "- Pontuação\n" +
+        "- Ações pendentes\n" +
+        "- Ações processadas\n" +
+        "- Dados anteriores da partida\n\n" +
+        "A estrutura inicial será recriada.\n\n" +
+        "Deseja continuar?"
+    );
+
+    if (!confirmation) return;
+
+    const typedConfirmation = prompt(
+        'Para confirmar a limpeza, digite LIMPAR:'
+    );
+
+    if (typedConfirmation !== "LIMPAR") {
+        setMessage("Limpeza cancelada. Confirmação inválida.", "error");
+        return;
+    }
+
+    isClearingFirebaseCache = true;
+    updateClearCacheButton();
+
+    setMessage("Verificando segurança e limpando Firebase...", "success");
+
+    try {
+
+        const roomReference = ref(
+            database,
+            `Rooms/${FIXED_ROOM_CODE}`
+        );
+
+        const result = await runTransaction(
+            roomReference,
+            room => {
+
+                // Não permite limpar uma sala inexistente.
+                if (!room || !room.Match) return;
+
+                const status = room.Match.Status;
+
+                // Só permite limpar partidas paradas.
+                if (status !== "Waiting" && status !== "Finished") {
+                    return;
+                }
+
+                const p1Online =
+                    room.Players?.Jogador1?.Connected === true;
+
+                const p2Online =
+                    room.Players?.Jogador2?.Connected === true;
+
+                // Impede a limpeza se algum jogador estiver conectado.
+                if (p1Online || p2Online) {
+                    return;
+                }
+
+                // Substitui integralmente os dados da sala.
+                return {
+                    Match: {
+                        Status: "Waiting",
+                        CurrentTurnPlayer: "",
+                        TurnNumber: 0,
+                        TurnStartedAt: 0,
+                        TurnDuration: TURN_DURATION_SECONDS,
+                        Winner: "",
+                        RestartSignal: 0
+                    },
+
+                    Score: {
+                        Jogador1: 0,
+                        Jogador2: 0
+                    },
+
+                    Players: {},
+
+                    Actions: {},
+
+                    ProcessedActions: {}
+                };
+
+            },
+            {
+                applyLocally: false
+            }
+        );
+
+        if (!result.committed) {
+            throw new Error(
+                "Limpeza bloqueada. Verifique se a partida está encerrada e se os jogadores estão desconectados."
+            );
+        }
+
+        setMessage(
+            "✅ Firebase limpo! Sala ARENA01 restaurada ao estado inicial.",
+            "success"
+        );
+
+        console.log(
+            "[FootballVR] Limpeza completa da sala ARENA01."
+        );
+
+    } catch (error) {
+
+        console.error(
+            "[FootballVR] Erro ao limpar Firebase:",
+            error
+        );
+
+        setMessage(
+            "❌ Não foi possível limpar: " + error.message,
+            "error"
+        );
+
+    } finally {
+
+        isClearingFirebaseCache = false;
+        updateClearCacheButton();
+
+    }
+}
+
+
+
+    async function init() {
+        try {
+            await signInAnonymously(auth);
+            setConnection(true);
+
+            generateAccessQRCode();
+
+            onValue(ref(database, ".info/serverTimeOffset"), (snapshot) => {
+                serverTimeOffset = Number(snapshot.val() || 0);
+            });
+
+            // Monitora jogadores para atualizar UI e detectar desconexão durante o jogo
+            onValue(ref(database, `Rooms/${FIXED_ROOM_CODE}/Players`), (snapshot) => {
+                currentPlayers = snapshot.val() || {};
+                updatePlayersUI();
+                checkDisconnectDuringGame();
+                updateClearCacheButton();
+            });
+
+            onValue(ref(database, `Rooms/${FIXED_ROOM_CODE}`), (snapshot) => {
+                const data = snapshot.val();
+
+                if (data) {
+                    currentMatch = data.Match || {};
+                    currentScore = data.Score || { Jogador1: 0, Jogador2: 0 };
+                    updateMatchUI();
+                }
+
+                updateClearCacheButton();
+            });
+
+            timerInterval = setInterval(updateTurnTimer, 200);
+        } catch (error) {
+            console.error("Erro na inicialização:", error);
+            setConnection(false);
+        }
+    }
+
+    async function restartMatch() {
+    ui.btnRestart.disabled = true;
+    setMessage("Enviando comando de reinício...", "success");
+    try {
+        // Envia um timestamp do servidor. Qualquer mudança aqui será detectada pelo Unity.
+        await update(ref(database, `Rooms/${FIXED_ROOM_CODE}/Match`), {
+            'RestartSignal': serverTimestamp()
+        });
+        setMessage("✅ Comando de reinício enviado para o Unity!", "success");
+    } catch (error) {
+        console.error(error);
+        setMessage(`❌ Erro: ${error.message}`, "error");
+    } finally {
+        ui.btnRestart.disabled = false;
+    }
+}
+
+    async function resetMatch() {
+        ui.btnReset.disabled = true;
+        setMessage("Resetando partida...", "success");
+        try {
+            const snap = await get(ref(database, `Rooms/${FIXED_ROOM_CODE}`));
+            const data = snap.val();
+            
+            if (!data || !data.Match) throw new Error("Sala não encontrada.");
+
+            const updates = {
+                'Match/Status': 'Waiting',
+                'Match/CurrentTurnPlayer': '',
+                'Match/TurnNumber': 0,
+                'Match/TurnStartedAt': 0,
+                'Match/TurnDuration': TURN_DURATION_SECONDS,
+                'Match/Winner': '',
+                'Score/Jogador1': 0,
+                'Score/Jogador2': 0,
+                'Actions': {},
+                'ProcessedActions': {}
+            };
+
+            await update(ref(database, `Rooms/${FIXED_ROOM_CODE}`), updates);
+            setMessage("✅ Partida resetada! Aguardando ambos conectarem para iniciar.", "success");
+        } catch (error) {
+            console.error(error);
+            setMessage(`❌ Erro: ${error.message}`, "error");
+        } finally {
+            ui.btnReset.disabled = false;
+        }
+    }
+
+    async function startMatch() {
+    ui.btnStart.disabled = true;
+    setMessage("Validando jogadores...", "success");
+    try {
+        const roomReference = ref(database, `Rooms/${FIXED_ROOM_CODE}`);
+        const result = await runTransaction(roomReference, room => {
+            if (!room?.Match || !room.Players) return;
+            
+            const p1 = room.Players.Jogador1;
+            const p2 = room.Players.Jogador2;
+            
+            const p1Online = p1?.Connected === true;
+            const p2Online = p2?.Connected === true;
+
+            if (!p1Online || !p2Online) return;
+
+            room.Match.Status = "Playing";
+            room.Match.CurrentTurnPlayer = "Jogador1";
+            room.Match.TurnNumber = 0;
+            room.Match.TurnStartedAt = serverTimestamp();
+            room.Match.TurnDuration = TURN_DURATION_SECONDS;
+            return room;
+        }, { applyLocally: false });
+
+        if (!result.committed)
+            throw new Error("É obrigatório ter Jogador 1 e Jogador 2 conectados.");
+        
+        setMessage("✅ Partida iniciada!", "success");
+    } catch (error) {
+        console.error(error);
+        setMessage(`❌ ${error.message}`, "error");
+    } finally {
+        ui.btnStart.disabled = false;
+    }
+}
+
+    async function endMatch() {
+        ui.btnEndMatch.disabled = true;
+        setMessage("Encerrando partida...", "success");
+        try {
+            if (!currentMatch || (currentMatch.Status !== "Playing" && currentMatch.Status !== "Suspended")) {
+                throw new Error("Não há partida em andamento para encerrar.");
+            }
+
+            const updates = {
+                'Match/Status': 'Finished',
+                'Match/Winner': currentMatch.Winner || 'Draw',
+                'Match/CurrentTurnPlayer': '',
+                'Match/TurnStartedAt': 0
+            };
+
+            await update(ref(database, `Rooms/${FIXED_ROOM_CODE}`), updates);
+            setMessage("✅ Partida encerrada com sucesso!", "success");
+        } catch (error) {
+            console.error(error);
+            setMessage(`❌ Erro: ${error.message}`, "error");
+        } finally {
+            ui.btnEndMatch.disabled = false;
+        }
+    }
+
+    
+    function updatePlayersUI() {
+    const p1 = currentPlayers.Jogador1;
+    const p2 = currentPlayers.Jogador2;
+
+    // Agora lê Connected DIRETO do jogador (sem Sessions)
+    const p1Online = p1?.Connected === true;
+    const p2Online = p2?.Connected === true;
+
+    ui.player1Name.textContent = p1?.Name || "Aguardando Jogador 1...";
+    ui.player2Name.textContent = p2?.Name || "Aguardando Jogador 2...";
+
+    ui.player1Online.style.backgroundColor = p1Online ? "var(--success-color)" : "var(--danger-color)";
+    ui.player1Online.title = p1Online ? "Conectado" : "Desconectado";
+    
+    ui.player2Online.style.backgroundColor = p2Online ? "var(--success-color)" : "var(--danger-color)";
+    ui.player2Online.title = p2Online ? "Conectado" : "Desconectado";
+
+    // O botão de iniciar SÓ é habilitado se ambos estiverem online
+    const canStart = p1Online && p2Online;
+    ui.btnStart.disabled = !canStart;
+    
+    if (!canStart) {
+        ui.btnStart.title = "Aguardando ambos os jogadores conectarem";
+    } else {
+        ui.btnStart.title = "Ambos conectados. Clique para iniciar.";
+    }
+}
+
+async function checkDisconnectDuringGame() {
+    if (!currentMatch || currentMatch.Status !== "Playing") return;
+
+    const p1 = currentPlayers.Jogador1;
+    const p2 = currentPlayers.Jogador2;
+    
+    const p1Online = p1?.Connected === true;
+    const p2Online = p2?.Connected === true;
+
+    if (!p1Online || !p2Online) {
+        const disconnectedPlayer = !p1Online ? "Jogador 1" : "Jogador 2";
+        setMessage(`⚠️ ${disconnectedPlayer} desconectou! Parando o jogo automaticamente.`, "error");
+        
+        const winner = !p1Online ? "Jogador2" : "Jogador1";
+        
+        await update(ref(database, `Rooms/${FIXED_ROOM_CODE}`), {
+            'Match/Status': 'Finished',
+            'Match/Winner': winner,
+            'Match/CurrentTurnPlayer': '',
+            'Match/TurnStartedAt': 0
+        });
+    }
+}
+
+    function updateMatchUI() {
+        if (!currentMatch) return;
+
+        const status = currentMatch.Status || "Waiting";
+        const turnNumber = Number(currentMatch.TurnNumber || 0);
+        const shotsPerPlayer = Number(currentMatch.ShotsPerPlayer || 5);
+        
+        const p1Shots = Math.ceil(turnNumber / 2);
+        const p2Shots = Math.floor(turnNumber / 2);
+
+        ui.player1Score.textContent = currentScore.Jogador1 || 0;
+        ui.player2Score.textContent = currentScore.Jogador2 || 0;
+        ui.player1Shots.textContent = Math.min(p1Shots, shotsPerPlayer);
+        ui.player2Shots.textContent = Math.min(p2Shots, shotsPerPlayer);
+
+        ui.cardPlayer1.classList.remove("active-turn");
+        ui.cardPlayer2.classList.remove("active-turn");
+        
+        if (status === "Playing" && currentMatch.CurrentTurnPlayer) {
+            if (currentMatch.CurrentTurnPlayer === "Jogador1") ui.cardPlayer1.classList.add("active-turn");
+            if (currentMatch.CurrentTurnPlayer === "Jogador2") ui.cardPlayer2.classList.add("active-turn");
+        }
+
+        ui.matchStatus.className = `match-status ${status.toLowerCase()}`;
+        ui.winnerText.textContent = "";
+
+        if (status === "Waiting") {
+            ui.matchStatus.textContent = "AGUARDANDO";
+            ui.turnInfo.textContent = "Partida resetada. Conecte os dois jogadores e clique em 'Iniciar'.";
+            ui.timer.textContent = "--:--";
+            ui.timer.classList.remove("danger");
+        } else if (status === "Playing") {
+            ui.matchStatus.textContent = "EM ANDAMENTO";
+            const isP1Turn = currentMatch.CurrentTurnPlayer === "Jogador1";
+            ui.turnInfo.textContent = isP1Turn ? "Vez do Jogador 1 (Unity)" : "Vez do Jogador 2 (Unity)";
+            updateTurnTimer();
+        } else if (status === "Finished") {
+            ui.matchStatus.textContent = "FINALIZADA";
+            ui.turnInfo.textContent = "A partida chegou ao fim.";
+            ui.timer.textContent = "00:00";
+            ui.timer.classList.remove("danger");
+            
+            const winnerUid = currentMatch.Winner;
+            if (winnerUid === "Draw") {
+                ui.winnerText.textContent = "🤝 PARTIDA ENCERRADA (EMPATE)";
+            } else if (winnerUid) {
+                const winnerName = winnerUid === "Jogador1" ? "JOGADOR 1" : "JOGADOR 2";
+                ui.winnerText.textContent = `🏆 ${winnerName} VENCEU!`;
+            }
+        }
+    }
+
+    function updateTurnTimer() {
+        if (!currentMatch || currentMatch.Status !== "Playing") return;
+
+        const startedAt = Number(currentMatch.TurnStartedAt || 0);
+        const duration = Number(currentMatch.TurnDuration || TURN_DURATION_SECONDS);
+
+        if (startedAt <= 0) {
+            ui.timer.textContent = "--:--";
+            return;
+        }
+
+        const serverNow = Date.now() + serverTimeOffset;
+        const elapsed = Math.max(0, serverNow - startedAt);
+        const remaining = Math.max(0, Math.ceil((duration * 1000 - elapsed) / 1000));
+
+        const minutes = Math.floor(remaining / 60);
+        const seconds = remaining % 60;
+        ui.timer.textContent = `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+
+        if (remaining <= 10) {
+            ui.timer.classList.add("danger");
+        } else {
+            ui.timer.classList.remove("danger");
+        }
+    }
+
+    ui.btnReset.addEventListener("click", resetMatch);
+    ui.btnStart.addEventListener("click", startMatch);
+    ui.btnEndMatch.addEventListener("click", endMatch);
+    ui.btnRestart.addEventListener("click", restartMatch);
+    ui.btnClearCache.addEventListener("click", clearFirebaseCache);
+
+    init();
+</script>
+</body>
+</html>
