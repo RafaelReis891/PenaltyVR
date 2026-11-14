@@ -1,0 +1,512 @@
+
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" href="data:,">
+    <title>FootballVR - Simulador</title>
+
+    <script src="/socket.io/socket.io.js"></script>
+
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            padding: 25px;
+            background: #101812;
+            color: #fff;
+            font-family: Arial, sans-serif;
+        }
+
+        .container {
+            max-width: 950px;
+            margin: auto;
+        }
+
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 25px;
+            gap: 12px;
+        }
+
+        h1 {
+            font-size: 24px;
+            margin: 0;
+        }
+
+        .connection {
+            color: #aaa;
+            font-size: 13px;
+        }
+
+        .online {
+            color: #79c957;
+        }
+
+        .offline {
+            color: #ff6565;
+        }
+
+        .scoreboard {
+            display: grid;
+            grid-template-columns: 1fr auto 1fr;
+            align-items: center;
+            background: #19251c;
+            border: 1px solid #304333;
+            border-radius: 14px;
+            padding: 30px 15px;
+            text-align: center;
+        }
+
+        .team-name {
+            font-size: 14px;
+            color: #aaa;
+            margin-bottom: 10px;
+        }
+
+        .score {
+            font-size: 65px;
+            font-weight: bold;
+        }
+
+        .versus {
+            font-size: 22px;
+            color: #718072;
+        }
+
+        .players {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 18px;
+            margin-top: 20px;
+        }
+
+        .player {
+            background: #19251c;
+            border: 1px solid #304333;
+            border-radius: 12px;
+            padding: 20px;
+        }
+
+        .player h2 {
+            margin-top: 0;
+        }
+
+        select {
+            width: 100%;
+            padding: 12px;
+            background: #101812;
+            color: white;
+            border: 1px solid #405744;
+            border-radius: 7px;
+            margin-bottom: 12px;
+        }
+
+        button {
+            width: 100%;
+            padding: 15px;
+            border: 0;
+            border-radius: 7px;
+            background: #58a83d;
+            color: white;
+            font-weight: bold;
+            font-size: 15px;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background: #70c250;
+        }
+
+        button:disabled {
+            opacity: .4;
+            cursor: not-allowed;
+        }
+
+        .stats {
+            display: flex;
+            justify-content: space-between;
+            margin: 18px 0;
+            color: #b8c5b8;
+            font-size: 13px;
+        }
+
+        .result {
+            text-align: center;
+            font-weight: bold;
+            min-height: 24px;
+            margin-top: 12px;
+        }
+
+        .goal {
+            color: #79c957;
+        }
+
+        .saved {
+            color: #ffbd58;
+        }
+
+        .actions {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            margin-top: 20px;
+        }
+
+        .secondary {
+            background: #344438;
+        }
+
+        .danger {
+            background: #923e3e;
+        }
+
+        @media(max-width: 650px) {
+            body {
+                padding: 12px;
+            }
+
+            .players {
+                grid-template-columns: 1fr;
+            }
+
+            .score {
+                font-size: 45px;
+            }
+
+            header {
+                align-items: flex-start;
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+<div class="container">
+
+    <header>
+        <h1>⚽ FootballVR Simulator</h1>
+
+        <div id="connection" class="connection offline">
+            ● Desconectado
+        </div>
+    </header>
+
+    <div class="scoreboard">
+
+        <div>
+            <div class="team-name">JOGADOR 1</div>
+            <div class="score" id="score1">0</div>
+        </div>
+
+        <div class="versus">VS</div>
+
+        <div>
+            <div class="team-name">JOGADOR 2</div>
+            <div class="score" id="score2">0</div>
+        </div>
+
+    </div>
+
+    <div class="players">
+
+        <div class="player">
+
+            <h2>Jogador 1</h2>
+
+            <select id="player1">
+                <option value="">Selecionar jogador...</option>
+                <option value="Player1">Jogar como Jogador 1</option>
+                <option value="Player2">Jogar como Jogador 2</option>
+            </select>
+
+            <button id="shoot1" disabled>
+                ⚽ SIMULAR CHUTE
+            </button>
+
+            <div class="stats">
+                <span>Chutes: <b id="shots1">0</b></span>
+                <span>Gols: <b id="goals1">0</b></span>
+            </div>
+
+            <div id="result1" class="result"></div>
+
+        </div>
+
+        <div class="player">
+
+            <h2>Jogador 2</h2>
+
+            <select id="player2">
+                <option value="">Selecionar jogador...</option>
+                <option value="Player1">Jogar como Jogador 1</option>
+                <option value="Player2">Jogar como Jogador 2</option>
+            </select>
+
+            <button id="shoot2" disabled>
+                ⚽ SIMULAR CHUTE
+            </button>
+
+            <div class="stats">
+                <span>Chutes: <b id="shots2">0</b></span>
+                <span>Gols: <b id="goals2">0</b></span>
+            </div>
+
+            <div id="result2" class="result"></div>
+
+        </div>
+
+    </div>
+
+    <div class="actions">
+
+        <button class="secondary" id="restart">
+            ↻ Reiniciar partida
+        </button>
+
+        <button class="danger" id="clear">
+            🗑 Limpar sala
+        </button>
+
+    </div>
+
+</div>
+
+<script>
+
+const API = window.location.origin;
+const ROOM = "Rooms/ARENA01";
+
+const socket = io(API);
+
+const connection = document.getElementById("connection");
+
+let databaseState = null;
+
+socket.on("connect", () => {
+    connection.textContent = "● Conectado ao servidor";
+    connection.className = "connection online";
+
+    socket.emit("subscribe", {
+        path: ROOM
+    });
+});
+
+socket.on("disconnect", () => {
+    connection.textContent = "● Desconectado";
+    connection.className = "connection offline";
+});
+
+socket.on("database:error", error => {
+    console.error("[DATABASE ERROR]", JSON.stringify(error, null, 4));
+    alert("Erro no banco: " + (error.message || "Erro desconhecido"));
+});
+
+socket.on("value", data => {
+
+    if (data.path !== ROOM) return;
+
+    databaseState = data.value || {};
+
+    render();
+});
+
+async function request(url, method = "GET", body = null) {
+
+    const options = {
+        method,
+        headers: {
+            "Content-Type": "application/json"
+        }
+    };
+
+    if (body !== null) {
+        options.body = JSON.stringify(body);
+    }
+
+    const response = await fetch(API + url, options);
+
+    const result = await response.json();
+
+    if (!response.ok || result.success === false) {
+        throw new Error(result.error || "Erro na comunicação.");
+    }
+
+    return result;
+}
+
+async function registerPlayer(player) {
+
+    await request("/api/test/join", "POST", {
+        player
+    });
+
+}
+
+function render() {
+
+    if (!databaseState) return;
+
+    const score = databaseState.Score || {};
+    const stats = databaseState.Stats || {};
+
+    const p1 = stats.Jogador1 || {};
+    const p2 = stats.Jogador2 || {};
+
+    document.getElementById("score1").textContent =
+        score.Jogador1 || 0;
+
+    document.getElementById("score2").textContent =
+        score.Jogador2 || 0;
+
+    document.getElementById("shots1").textContent =
+        p1.Shots || 0;
+
+    document.getElementById("shots2").textContent =
+        p2.Shots || 0;
+
+    document.getElementById("goals1").textContent =
+        p1.Goals || 0;
+
+    document.getElementById("goals2").textContent =
+        p2.Goals || 0;
+}
+
+
+// Configuração dos jogadores
+
+async function configurePlayer(selectId, buttonId) {
+
+    const select = document.getElementById(selectId);
+    const button = document.getElementById(buttonId);
+
+    select.addEventListener("change", async () => {
+
+        button.disabled = true;
+
+        try {
+
+            if (select.value) {
+                await registerPlayer(select.value);
+            }
+
+            button.disabled = !select.value || !socket.connected;
+
+        } catch (error) {
+
+            alert(error.message);
+            select.value = "";
+
+        }
+
+    });
+
+    button.addEventListener("click", async () => {
+
+        if (!select.value || !socket.connected) return;
+
+        button.disabled = true;
+        button.textContent = "CHUTANDO...";
+
+        try {
+
+            const result = await request("/api/test/shot", "POST", {
+                player: select.value
+            });
+
+            const resultElement = document.getElementById(
+                selectId === "player1" ? "result1" : "result2"
+            );
+
+            if (result.result === "Goal") {
+
+                resultElement.textContent = "⚽ GOOOOOL!";
+                resultElement.className = "result goal";
+
+            } else {
+
+                resultElement.textContent = "🧤 DEFENDIDO!";
+                resultElement.className = "result saved";
+
+            }
+
+        } catch (error) {
+
+            alert(error.message);
+
+        } finally {
+
+            button.disabled = !select.value || !socket.connected;
+            button.textContent = "⚽ SIMULAR CHUTE";
+
+        }
+
+    });
+
+}
+
+configurePlayer("player1", "shoot1");
+configurePlayer("player2", "shoot2");
+
+
+// Reiniciar partida
+
+document.getElementById("restart").addEventListener("click", async () => {
+
+    if (!confirm("Deseja reiniciar a partida?")) return;
+
+    try {
+
+        await request("/api/test/restart", "POST");
+
+        document.getElementById("result1").textContent = "";
+        document.getElementById("result2").textContent = "";
+
+    } catch (error) {
+
+        alert(error.message);
+
+    }
+
+});
+
+
+// Limpar sala
+
+document.getElementById("clear").addEventListener("click", async () => {
+
+    if (!confirm("Deseja apagar completamente a sala ARENA01?")) return;
+
+    try {
+
+        await request("/api/test/room", "DELETE");
+
+        document.getElementById("player1").value = "";
+        document.getElementById("player2").value = "";
+
+        document.getElementById("shoot1").disabled = true;
+        document.getElementById("shoot2").disabled = true;
+
+        document.getElementById("result1").textContent = "";
+        document.getElementById("result2").textContent = "";
+
+    } catch (error) {
+
+        alert(error.message);
+
+    }
+
+});
+
+</script>
+
+</body>
+</html>

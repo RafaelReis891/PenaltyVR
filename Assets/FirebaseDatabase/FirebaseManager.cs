@@ -34,12 +34,20 @@ public class FirebaseManager : MonoBehaviour
 	private long serverTimeOffset;
 	private bool hasServerTimeOffset;
 	private bool firebaseReadyEventSent;
+	private bool initializationInProgress;
+	private bool reconnectInProgress;
+	private bool forceReconnectInProgress;
+	private string lastPlayerName;
 	private int timeoutProcessingTurn = -1;
 
 	public bool IsInitialized { get; private set; }
 	public bool IsConnected { get; private set; }
 	public bool IsInRoom { get; private set; }
 	public bool IsMyPlayerConnected { get; private set; }
+	public bool InitializationInProgress => initializationInProgress;
+	public bool HasRoomListener => roomListener != null;
+	public bool HasActionListener => actionListener != null;
+	public string LastError { get; private set; } = "";
 
 	public long ServerTimeOffset => serverTimeOffset;
 	public bool HasServerTimeOffset => hasServerTimeOffset;
@@ -66,7 +74,7 @@ public class FirebaseManager : MonoBehaviour
 		DontDestroyOnLoad(gameObject);
 	}
 
-	private async void Start() { await InitializeFirebase(); }
+	private async void Start() { await InitializeFirebaseAsync(); }
 
 	private void Update()
 	{
@@ -81,21 +89,33 @@ public class FirebaseManager : MonoBehaviour
 			_ = ProcessExpiredTurn(CurrentRoom.TurnNumber);
 	}
 
-	private async Task InitializeFirebase()
+	public async Task<bool> InitializeFirebaseAsync()
 	{
+		if (IsInitialized) return true;
+
+		// Se o Start do próprio FirebaseManager já estiver inicializando, aguarda
+		// essa tentativa em vez de iniciar duas inicializações simultâneas.
+		if (initializationInProgress)
+		{
+			for (int i = 0; i < 600 && initializationInProgress; i++)
+				await Task.Delay(100);
+			return IsInitialized;
+		}
+
+		initializationInProgress = true;
 		try
 		{
 			if (Application.internetReachability == NetworkReachability.NotReachable)
 			{
 				ReportError("Conecte-se à internet para jogar.");
-				return;
+				return false;
 			}
 
 			DependencyStatus dependencyStatus = await FirebaseApp.CheckAndFixDependenciesAsync();
 			if (dependencyStatus != DependencyStatus.Available)
 			{
 				ReportError("Dependências Firebase indisponíveis: " + dependencyStatus);
-				return;
+				return false;
 			}
 
 			FirebaseApp app = FirebaseApp.DefaultInstance;
@@ -108,13 +128,20 @@ public class FirebaseManager : MonoBehaviour
 
 			authUid = auth.CurrentUser.UserId;
 			IsInitialized = true;
+			LastError = "";
 
 			Debug.Log("[FootballVR] Firebase inicializado. Auth UID: " + authUid);
 			MonitorConnection();
+			return true;
 		}
 		catch (Exception ex)
 		{
 			ReportError("Erro ao inicializar Firebase: " + ex);
+			return false;
+		}
+		finally
+		{
+			initializationInProgress = false;
 		}
 	}
 
@@ -122,6 +149,7 @@ public class FirebaseManager : MonoBehaviour
 	{
 		if (IsInRoom)
 		{
+			if (playerId == fixedPlayerId) return;
 			Debug.LogError("[FootballVR] Não é possível trocar a identidade depois de entrar na sala.");
 			return;
 		}
@@ -143,6 +171,7 @@ public class FirebaseManager : MonoBehaviour
 		if (reference == null) return;
 
 		DatabaseReference connectedReference = reference.Child(".info").Child("connected");
+		if (connectionListener != null) connectedReference.ValueChanged -= connectionListener;
 		connectionListener = (sender, args) =>
 		{
 			IsConnected = args.Snapshot.Exists && args.Snapshot.Value is bool && (bool)args.Snapshot.Value;
@@ -151,12 +180,13 @@ public class FirebaseManager : MonoBehaviour
 				firebaseReadyEventSent = true;
 				OnFirebaseReady?.Invoke();
 			}
-			if (IsConnected && IsInRoom)
-				_ = UpdatePresence();
+			if (IsConnected && IsInRoom && !forceReconnectInProgress)
+				_ = ReconnectRoomAsync(lastPlayerName);
 		};
 		connectedReference.ValueChanged += connectionListener;
 
 		DatabaseReference offsetReference = reference.Child(".info").Child("serverTimeOffset");
+		if (serverTimeOffsetListener != null) offsetReference.ValueChanged -= serverTimeOffsetListener;
 		serverTimeOffsetListener = (sender, args) =>
 		{
 			if (args.Snapshot.Exists && args.Snapshot.Value != null)
@@ -208,6 +238,7 @@ public class FirebaseManager : MonoBehaviour
 		}
 		if (IsInRoom) return;
 
+		lastPlayerName = string.IsNullOrWhiteSpace(playerName) ? playerId : playerName.Trim();
 		roomCode = FIXED_ROOM_CODE;
 		DatabaseReference targetRoom = reference.Child("Rooms").Child(roomCode);
 
@@ -270,6 +301,7 @@ public class FirebaseManager : MonoBehaviour
 			AttachRoomListeners();
 			await UpdatePresence();
 			OnRoomJoined?.Invoke();
+			LastError = "";
 
 			Debug.Log("[FootballVR] Entrou na sala como " + playerId);
 		}
@@ -278,6 +310,148 @@ public class FirebaseManager : MonoBehaviour
 			IsInRoom = false;
 			roomReference = null;
 			ReportError("Erro ao entrar na sala: " + ex);
+		}
+	}
+
+	/// <summary>
+	/// Reinicia a conexão do Realtime Database e depois recupera a presença/sala.
+	/// GoOffline/GoOnline afeta todas as referências deste FirebaseDatabase.
+	/// </summary>
+	public async Task<bool> ForceReconnectAsync(string playerName)
+	{
+		// O painel Admin encerra automaticamente a partida se detectar Connected=false.
+		// GoOffline provoca essa transição, portanto o reinício manual é bloqueado em jogo.
+		if (IsInRoom && CurrentRoom != null && CurrentRoom.Status == "Playing")
+		{
+			ReportError("Force Reconnect bloqueado durante a partida. O painel Admin encerraria o jogo ao detectar a desconexão.");
+			return false;
+		}
+
+		if (forceReconnectInProgress) return false;
+		forceReconnectInProgress = true;
+		try
+		{
+			if (!IsInitialized)
+			{
+				bool initialized = await InitializeFirebaseAsync();
+				if (!initialized) return false;
+			}
+
+			if (database == null)
+			{
+				ReportError("Instância do Firebase Realtime Database indisponível.");
+				return false;
+			}
+
+			Debug.Log("[FootballVR] Reiniciando conexão do Realtime Database...");
+			database.GoOffline();
+			await Task.Delay(500);
+			database.GoOnline();
+
+			return await ReconnectRoomAsync(playerName);
+		}
+		catch (Exception ex)
+		{
+			ReportError("Falha no Force Reconnect: " + ex.Message);
+			return false;
+		}
+		finally
+		{
+			forceReconnectInProgress = false;
+		}
+	}
+
+	/// <summary>
+	/// Recupera a entrada na sala sem trocar a identidade e sem duplicar listeners.
+	/// Também recria o registro do jogador caso o Admin tenha limpado a sala.
+	/// </summary>
+	public async Task<bool> ReconnectRoomAsync(string playerName)
+	{
+		if (reconnectInProgress) return false;
+		reconnectInProgress = true;
+		try
+		{
+			if (!IsInitialized)
+			{
+				bool initialized = await InitializeFirebaseAsync();
+				if (!initialized) return false;
+			}
+
+			// O SDK do Firebase tenta reconectar automaticamente. Aqui aguardamos
+			// essa recuperação antes de mexer na presença ou na sala.
+			for (int i = 0; i < 150 && !IsConnected; i++)
+				await Task.Delay(100);
+
+			if (!IsConnected)
+			{
+				ReportError("Firebase inicializado, mas ainda sem conexão com o Realtime Database.");
+				return false;
+			}
+
+			if (!identityConfigured || string.IsNullOrEmpty(playerId))
+			{
+				ReportError("Identidade do jogador ainda não foi configurada.");
+				return false;
+			}
+
+			if (!IsInRoom || roomReference == null)
+			{
+				await JoinRoom(string.IsNullOrWhiteSpace(playerName) ? playerId : playerName.Trim());
+				return IsInRoom;
+			}
+
+			lastPlayerName = string.IsNullOrWhiteSpace(playerName) ? playerId : playerName.Trim();
+			DatabaseReference targetRoom = roomReference;
+			DatabaseReference myConnectedRef = targetRoom.Child("Players").Child(playerId).Child("Connected");
+			await myConnectedRef.OnDisconnect().SetValue(false);
+
+			DataSnapshot result = await targetRoom.RunTransaction(data =>
+			{
+				if (data.Value == null) data.Value = CreateInitialRoom();
+				MutableData match = data.Child("Match");
+				EnsureMatchDefaults(match);
+				if (ReadString(match.Child("Status")) == "Finished")
+					return TransactionResult.Abort();
+
+				MutableData player = data.Child("Players").Child(playerId);
+				player.Child("Name").Value = lastPlayerName;
+				player.Child("Connected").Value = true;
+
+				if (data.Child("Score").Value == null)
+					data.Child("Score").Value = new Dictionary<string, object>
+					{
+						{ "Jogador1", 0 }, { "Jogador2", 0 }
+					};
+				if (data.Child("Actions").Value == null) data.Child("Actions").Value = new Dictionary<string, object>();
+				if (data.Child("ProcessedActions").Value == null) data.Child("ProcessedActions").Value = new Dictionary<string, object>();
+				return TransactionResult.Success(data);
+			});
+
+			if (result == null)
+			{
+				ReportError("Não foi possível recuperar a presença. A partida pode estar finalizada; solicite um reset no Admin.");
+				return false;
+			}
+
+			roomCode = FIXED_ROOM_CODE;
+			roomReference = targetRoom;
+			actionsReference = targetRoom.Child("Actions");
+			IsInRoom = true;
+			IsMyPlayerConnected = true;
+			AttachRoomListeners();
+			await UpdatePresence();
+			LastError = "";
+			Debug.Log("[FootballVR] Conexão e presença recuperadas para " + playerId + ".");
+			return true;
+		}
+		catch (Exception ex)
+		{
+			ReportError("Falha ao recuperar conexão/sala: " + ex.Message);
+			return false;
+		}
+		finally
+		{
+			reconnectInProgress = false;
 		}
 	}
 
@@ -424,8 +598,14 @@ public class FirebaseManager : MonoBehaviour
 
 	private async Task ProcessShot(string shotId)
 	{
-		if (!IsConnected || !IsMyPlayerConnected || roomReference == null || string.IsNullOrEmpty(shotId))
+		if (!IsConnected ||
+			!IsMyPlayerConnected ||
+			playerId != "Jogador1" ||
+			roomReference == null ||
+			string.IsNullOrEmpty(shotId))
+		{
 			return;
+		}
 
 		try
 		{
@@ -503,7 +683,12 @@ public class FirebaseManager : MonoBehaviour
 		}
 		catch (Exception ex)
 		{
-			Debug.LogError("[FootballVR] Erro ao processar chute " + shotId + ": " + ex.Message);
+			Debug.LogError(
+				"[FootballVR] Erro ao processar chute " + shotId +
+				"\nTipo: " + ex.GetType().FullName +
+				"\nMensagem: " + ex.Message +
+				"\nDetalhes: " + ex
+			);
 		}
 	}
 
@@ -638,6 +823,7 @@ public class FirebaseManager : MonoBehaviour
 
 	private void ReportError(string message)
 	{
+		LastError = message;
 		Debug.LogError("[FootballVR] " + message);
 		OnError?.Invoke(message);
 	}

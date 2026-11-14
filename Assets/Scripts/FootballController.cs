@@ -74,7 +74,6 @@ public class QuestFootKick : MonoBehaviour
 	private bool shotInProgress;
 	private bool shotResultSent;
 	private bool finished;
-	private bool setupStarted;
 
 	private int lastPlayer1Score;
 	private int lastPlayer2Score;
@@ -84,7 +83,7 @@ public class QuestFootKick : MonoBehaviour
 	private void Start()
 	{
 		Debug.Log("[QuestFootKick] Iniciando. Papel configurado: " + myRole);
-		playerLocalLabel.text = playerDisplayName;
+		if (playerLocalLabel != null) playerLocalLabel.text = playerDisplayName;
 		if (balls == null) balls = new List<GameObject>();
 		rb = GetComponent<Rigidbody>();
 
@@ -110,16 +109,13 @@ public class QuestFootKick : MonoBehaviour
 			return;
 		}
 
-		string fixedId = myRole == PlayerRole.Player1 ? "Jogador1" : "Jogador2";
-		FirebaseManager.Instance.ConfigureIdentity(fixedId);
-
+		// A conexão e a entrada na sala agora são responsabilidade do
+		// FootballFirebaseController, que permanece ativo durante a Timeline.
 		FirebaseManager.Instance.OnRoomUpdated += HandleRoomUpdated;
 		FirebaseManager.Instance.OnRoomJoined += OnSuccessfullyJoinedRoom;
-		FirebaseManager.Instance.OnFirebaseReady += OnFirebaseReadyToSetup;
 
-		if (FirebaseManager.Instance.IsInitialized && FirebaseManager.Instance.IsConnected)
-			OnFirebaseReadyToSetup();
-
+		// Se a Timeline ativar este objeto depois da conexão, aplica imediatamente
+		// o estado atual da sala, sem precisar entrar novamente.
 		if (FirebaseManager.Instance.IsInRoom && FirebaseManager.Instance.CurrentRoom != null)
 			HandleRoomUpdated(FirebaseManager.Instance.CurrentRoom);
 	}
@@ -130,29 +126,9 @@ public class QuestFootKick : MonoBehaviour
 		{
 			FirebaseManager.Instance.OnRoomUpdated -= HandleRoomUpdated;
 			FirebaseManager.Instance.OnRoomJoined -= OnSuccessfullyJoinedRoom;
-			FirebaseManager.Instance.OnFirebaseReady -= OnFirebaseReadyToSetup;
 		}
 	}
 
-	private async void OnFirebaseReadyToSetup()
-	{
-		if (setupStarted || FirebaseManager.Instance == null) return;
-		setupStarted = true;
-
-		try
-		{
-			string displayName = string.IsNullOrWhiteSpace(playerDisplayName)
-				? (myRole == PlayerRole.Player1 ? "Jogador 1" : "Jogador 2")
-				: playerDisplayName.Trim();
-
-			Debug.Log("[QuestFootKick] Entrando na sala como: " + displayName);
-			await FirebaseManager.Instance.JoinRoom(displayName);
-		}
-		catch (System.Exception ex)
-		{
-			Debug.LogError("[QuestFootKick] Falha no setup da sala: " + ex);
-		}
-	}
 
 	private void Update()
 	{
@@ -291,6 +267,12 @@ public class QuestFootKick : MonoBehaviour
 		foreach (GameObject ball in balls)
 		{
 			if (ball == null) continue;
+
+			BallSound ballSound = ball.GetComponent<BallSound>();
+
+			if (ballSound != null)
+				ballSound.ResetState();
+
 			Rigidbody ballRb = ball.GetComponent<Rigidbody>();
 			if (ballRb != null)
 			{

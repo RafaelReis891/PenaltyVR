@@ -1,3 +1,4 @@
+
 using UnityEngine;
 
 public class BallSound : MonoBehaviour
@@ -15,12 +16,21 @@ public class BallSound : MonoBehaviour
 	private void OnCollisionEnter(Collision collision)
 	{
 		if (Time.time < nextSoundTime) return;
+
 		nextSoundTime = Time.time + 0.5f;
 
+		if (source == null) return;
+
 		if (collision.collider.CompareTag("GoalFrame"))
-			source.PlayOneShot(metalClip);
+		{
+			if (metalClip != null)
+				source.PlayOneShot(metalClip);
+		}
 		else
-			source.PlayOneShot(defaultClip);
+		{
+			if (defaultClip != null)
+				source.PlayOneShot(defaultClip);
+		}
 	}
 
 	private void OnTriggerEnter(Collider other)
@@ -31,31 +41,42 @@ public class BallSound : MonoBehaviour
 			if (!goalScored)
 			{
 				goalScored = true;
-				if (questFootKick != null) questFootKick.Goal(gameObject);
-				else Debug.LogWarning("[BallSound] QuestFootKick não configurado!");
+
+				if (questFootKick != null)
+					questFootKick.Goal(gameObject);
+				else
+					Debug.LogWarning("[BallSound] QuestFootKick não configurado!");
 			}
+
 			return;
 		}
 
 		// DEFESA DO GOLEIRO
+		if (kicked) return;
+
+		if (goalKeeperActions == null) return;
+
 		if (other.CompareTag("Left"))
 		{
-			if (!kicked) { goalKeeperActions.CatchLeft(); kicked = true; }
+			kicked = true;
+			goalKeeperActions.CatchLeft();
 		}
 		else if (other.CompareTag("Center"))
 		{
-			if (!kicked) { goalKeeperActions.CatchCenter(); kicked = true; }
+			kicked = true;
+			goalKeeperActions.CatchCenter();
 		}
 		else if (other.CompareTag("Right"))
 		{
-			if (!kicked) { goalKeeperActions.CatchRight(); kicked = true; }
+			kicked = true;
+			goalKeeperActions.CatchRight();
 		}
 	}
 
-	// NOVO MÉTODO: Chama este método quando a partida reiniciar
 	public void ResetState()
 	{
 		kicked = false;
 		goalScored = false;
+		nextSoundTime = 0f;
 	}
 }

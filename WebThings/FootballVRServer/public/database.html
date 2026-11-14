@@ -1,0 +1,338 @@
+
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FootballVR Database Explorer</title>
+
+    <script src="/socket.io/socket.io.js"></script>
+
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            padding: 25px;
+            background: #101318;
+            color: #e5e7eb;
+            font-family: Arial, sans-serif;
+        }
+
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 25px;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+
+        h1 {
+            font-size: 22px;
+            margin: 0;
+        }
+
+        .status {
+            font-size: 13px;
+            color: #22c55e;
+        }
+
+        .toolbar {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        button {
+            background: #252b35;
+            border: 1px solid #3b4350;
+            color: white;
+            padding: 10px 15px;
+            border-radius: 6px;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background: #343d4b;
+        }
+
+        #database {
+            background: #191e27;
+            border: 1px solid #303846;
+            border-radius: 8px;
+            padding: 18px;
+            min-height: 300px;
+            overflow-x: auto;
+        }
+
+        details {
+            margin-left: 20px;
+            padding: 3px 0;
+        }
+
+        summary {
+            cursor: pointer;
+            padding: 5px;
+            border-radius: 4px;
+            width: fit-content;
+        }
+
+        summary:hover {
+            background: #252d39;
+        }
+
+        .key {
+            color: #7dd3fc;
+        }
+
+        .type {
+            color: #8993a3;
+            font-size: 12px;
+            margin-left: 7px;
+        }
+
+        .string {
+            color: #a3e635;
+        }
+
+        .number {
+            color: #fbbf24;
+        }
+
+        .boolean {
+            color: #c084fc;
+        }
+
+        .null {
+            color: #f87171;
+        }
+
+        .primitive {
+            margin-left: 24px;
+            padding: 5px;
+        }
+
+        footer {
+            color: #8993a3;
+            font-size: 12px;
+            margin-top: 15px;
+        }
+    </style>
+</head>
+
+<body>
+
+<header>
+    <h1>FootballVR Database Explorer</h1>
+    <div class="status" id="status">● Conectando...</div>
+</header>
+
+<div class="toolbar">
+    <button onclick="expandAll()">Expandir tudo</button>
+    <button onclick="collapseAll()">Recolher tudo</button>
+    <button onclick="loadDatabase()">Atualizar</button>
+</div>
+
+<div id="database">
+    Carregando banco de dados...
+</div>
+
+<footer id="lastUpdate">
+    Aguardando dados...
+</footer>
+
+<script>
+    const databaseElement = document.getElementById("database");
+    const statusElement = document.getElementById("status");
+    const lastUpdateElement = document.getElementById("lastUpdate");
+
+    const socket = io();
+
+    function setStatus(connected) {
+        statusElement.textContent = connected
+            ? "● Conectado"
+            : "● Desconectado";
+
+        statusElement.style.color = connected
+            ? "#22c55e"
+            : "#ef4444";
+    }
+
+    socket.on("connect", () => {
+        setStatus(true);
+
+        // Inscreve no banco inteiro.
+        socket.emit("subscribe", {
+            path: ""
+        });
+    });
+
+    socket.on("disconnect", () => {
+        setStatus(false);
+    });
+
+    socket.on("connect_error", error => {
+        console.error("[Database Explorer]", error);
+        setStatus(false);
+    });
+
+    socket.on("database:error", error => {
+        console.error("[Database Error]", error);
+    });
+
+    socket.on("value", data => {
+        if (data.path !== "") return;
+
+        renderDatabase(data.value);
+    });
+
+    function loadDatabase() {
+        fetch("/api/db")
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error("Falha ao consultar banco.");
+                }
+
+                return response.json();
+            })
+            .then(data => {
+                renderDatabase(data.value);
+            })
+            .catch(error => {
+                console.error(error);
+                databaseElement.textContent = error.message;
+            });
+    }
+
+    
+function renderDatabase(data) {
+    // Guarda os caminhos que estão expandidos.
+    const expandedNodes = new Set();
+
+    document.querySelectorAll("#database details").forEach(details => {
+        if (details.open && details.dataset.path) {
+            expandedNodes.add(details.dataset.path);
+        }
+    });
+
+    databaseElement.replaceChildren();
+
+    if (data === null || data === undefined) {
+        databaseElement.textContent = "Banco vazio.";
+        return;
+    }
+
+    databaseElement.appendChild(
+        createNode("ROOT", data, true, "ROOT")
+    );
+
+    // Restaura os nós expandidos.
+    document.querySelectorAll("#database details").forEach(details => {
+        const nodePath = details.dataset.path;
+
+        if (expandedNodes.has(nodePath) || nodePath === "ROOT") {
+            details.open = true;
+        }
+    });
+
+    lastUpdateElement.textContent =
+        "Última atualização: " +
+        new Date().toLocaleTimeString("pt-BR");
+}
+
+
+    
+function createNode(key, value, root = false, parentPath = "") {
+    const container = document.createElement("div");
+
+    if (value !== null && typeof value === "object") {
+        const entries = Object.entries(value);
+
+        const details = document.createElement("details");
+
+        const nodePath = root
+            ? "ROOT"
+            : parentPath + "/" + key;
+
+        details.dataset.path = nodePath;
+        details.open = root;
+
+        const summary = document.createElement("summary");
+
+        const keyElement = document.createElement("span");
+        keyElement.className = "key";
+        keyElement.textContent = key;
+
+        const typeElement = document.createElement("span");
+        typeElement.className = "type";
+
+        const typeName = Array.isArray(value)
+            ? "Array"
+            : "Object";
+
+        typeElement.textContent = `${typeName} (${entries.length})`;
+
+        summary.appendChild(keyElement);
+        summary.appendChild(typeElement);
+
+        details.appendChild(summary);
+
+        for (const [childKey, childValue] of entries) {
+            details.appendChild(
+                createNode(childKey, childValue, false, nodePath)
+            );
+        }
+
+        container.appendChild(details);
+    } else {
+        const line = document.createElement("div");
+        line.className = "primitive";
+
+        const keyElement = document.createElement("span");
+        keyElement.className = "key";
+        keyElement.textContent = key + ": ";
+
+        const valueElement = document.createElement("span");
+
+        if (value === null) {
+            valueElement.className = "null";
+            valueElement.textContent = "null";
+        } else if (typeof value === "number") {
+            valueElement.className = "number";
+            valueElement.textContent = value;
+        } else if (typeof value === "boolean") {
+            valueElement.className = "boolean";
+            valueElement.textContent = value;
+        } else {
+            valueElement.className = "string";
+            valueElement.textContent = `"${value}"`;
+        }
+
+        line.appendChild(keyElement);
+        line.appendChild(valueElement);
+
+        container.appendChild(line);
+    }
+
+    return container;
+}
+
+
+    function expandAll() {
+        document.querySelectorAll("#database details")
+            .forEach(element => element.open = true);
+    }
+
+    function collapseAll() {
+        document.querySelectorAll("#database details")
+            .forEach(element => element.open = false);
+    }
+
+</script>
+
+</body>
+</html>
