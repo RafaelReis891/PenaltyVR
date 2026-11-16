@@ -83,7 +83,10 @@ public class QuestFootKick : MonoBehaviour
 	private void Start()
 	{
 		Debug.Log("[QuestFootKick] Iniciando. Papel configurado: " + myRole);
-		if (playerLocalLabel != null) playerLocalLabel.text = playerDisplayName;
+		if (playerLocalLabel != null)
+		{
+			playerLocalLabel.text = $"{playerDisplayName}\r\n<size=36>Chutes: 0/{shotsPerPlayer}\r\nGols: 0";
+		}
 		if (balls == null) balls = new List<GameObject>();
 		rb = GetComponent<Rigidbody>();
 

@@ -1,0 +1,243 @@
+
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Football VR - Placar</title>
+
+    <script src="/socket.io/socket.io.js"></script>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&display=swap" rel="stylesheet">
+
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            width: 100vw;
+            height: 100vh;
+            overflow: hidden;
+            background: #050505;
+            color: #ff2020;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: 'Orbitron', 'Courier New', monospace;
+        }
+
+        .container {
+            width: 100%;
+            text-align: center;
+            padding: 20px;
+        }
+
+        .scoreboard {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: clamp(12px, 4vw, 60px);
+            width: 100%;
+        }
+
+        .score {
+            font-size: clamp(100px, 25vw, 360px);
+            font-weight: 900;
+            line-height: 1;
+            letter-spacing: -8px;
+            color: #ff2020;
+            text-shadow:
+                0 0 5px #ff2020,
+                0 0 15px rgba(255, 20, 20, 0.8),
+                0 0 40px rgba(255, 0, 0, 0.5);
+            min-width: 1.2em;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .separator {
+            font-size: clamp(45px, 10vw, 130px);
+            font-weight: 900;
+            color: #7c1010;
+            line-height: 1;
+        }
+
+        .players {
+            display: flex;
+            justify-content: center;
+            gap: clamp(50px, 18vw, 260px);
+            margin-top: 22px;
+            color: #777;
+            font-family: Arial, sans-serif;
+            font-size: clamp(12px, 1.5vw, 20px);
+            font-weight: bold;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+        }
+
+        .connection {
+            margin-top: 28px;
+            font-family: Arial, sans-serif;
+            font-size: 12px;
+            font-weight: bold;
+            letter-spacing: 4px;
+            color: #777;
+            text-transform: uppercase;
+        }
+
+        .connection.online {
+            color: #42d66b;
+        }
+
+        .connection.offline {
+            color: #ff3030;
+        }
+
+        .connection::before {
+            content: "";
+            display: inline-block;
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            background: currentColor;
+            margin-right: 9px;
+            vertical-align: middle;
+            box-shadow: 0 0 8px currentColor;
+        }
+
+        @media (max-width: 600px) {
+            .score {
+                letter-spacing: -4px;
+            }
+
+            .players {
+                letter-spacing: 1px;
+            }
+        }
+
+        #fullscreenButton {
+    position: fixed;
+    top: 15px;
+    right: 15px;
+    width: 42px;
+    height: 42px;
+    border: 1px solid #333;
+    border-radius: 8px;
+    background: #151515;
+    color: #aaa;
+    font-size: 25px;
+    cursor: pointer;
+    z-index: 10;
+    transition: .2s;
+}
+
+#fullscreenButton:hover {
+    color: #ff2020;
+    border-color: #ff2020;
+}
+    </style>
+</head>
+
+<body>
+
+    <main class="container">
+
+        <button id="fullscreenButton" title="Tela cheia">
+    ⛶
+</button>
+
+        <div class="scoreboard">
+            <div class="score" id="player1Score">0</div>
+
+            <div class="separator">×</div>
+
+            <div class="score" id="player2Score">0</div>
+        </div>
+
+        <div class="players">
+            <span>Jogador 1</span>
+            <span>Jogador 2</span>
+        </div>
+
+        <div id="connectionStatus" class="connection offline">
+            OFFLINE
+        </div>
+
+    </main>
+
+    <script>
+        const API = window.location.origin;
+        const ROOM = "Rooms/ARENA01";
+
+        const socket = io(API);
+
+        const player1Score = document.getElementById("player1Score");
+        const player2Score = document.getElementById("player2Score");
+        const connectionStatus = document.getElementById("connectionStatus");
+
+        function setConnection(connected) {
+            connectionStatus.textContent = connected ? "AO VIVO" : "OFFLINE";
+
+            connectionStatus.classList.toggle("online", connected);
+            connectionStatus.classList.toggle("offline", !connected);
+        }
+
+        function updateScore(score) {
+            if (!score) return;
+
+            player1Score.textContent = Number(score.Jogador1) || 0;
+            player2Score.textContent = Number(score.Jogador2) || 0;
+        }
+
+        socket.on("connect", () => {
+            setConnection(true);
+
+            socket.emit("subscribe", {
+                path: ROOM
+            });
+        });
+
+        socket.on("disconnect", () => {
+            setConnection(false);
+        });
+
+        socket.on("connect_error", () => {
+            setConnection(false);
+        });
+
+        socket.on("value", data => {
+            if (!data) return;
+
+            if (data.path === ROOM || data.path === "Rooms") {
+                const roomData = data.value || {};
+
+                updateScore(roomData.Score);
+            }
+        });
+
+        setConnection(false);
+
+        const fullscreenButton = document.getElementById("fullscreenButton");
+
+fullscreenButton.addEventListener("click", async () => {
+    try {
+        if (!document.fullscreenElement) {
+            await document.documentElement.requestFullscreen();
+        } else {
+            await document.exitFullscreen();
+        }
+    } catch (error) {
+        console.error("Não foi possível alternar tela cheia:", error);
+    }
+});
+
+document.addEventListener("fullscreenchange", () => {
+    fullscreenButton.textContent = document.fullscreenElement ? "⛶" : "⛶";
+});
+    </script>
+
+</body>
+</html>

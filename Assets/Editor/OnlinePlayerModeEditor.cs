@@ -64,6 +64,7 @@ public static class OnlinePlayerModeEditor
 		questFootKick.myRole = role;
 		questFootKick.playerDisplayName = displayName;
 		questFootKick.playerLocalLabel.text = displayName;
+		questFootKick.playerLocalLabel.text = $"{displayName}\r\n<size=36>Chutes: 0/{questFootKick.shotsPerPlayer}\r\nGols: 0";
 
 		EditorUtility.SetDirty(questFootKick);
 

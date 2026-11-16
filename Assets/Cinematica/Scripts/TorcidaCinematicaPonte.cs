@@ -22,7 +22,13 @@ public class TorcidaCinematicaPonte : MonoBehaviour
         if (t != null) t.ApplyEmotion(CrowdEmotion.Celebrating, intensidadeCelebrating);
     }
 
-    public void Interested()
+	public void Disappointed()
+	{
+		var t = Torcida();
+		if (t != null) t.ApplyEmotion(CrowdEmotion.Disappointed, intensidadeCelebrating);
+	}
+
+	public void Interested()
     {
         var t = Torcida();
         if (t != null) t.ApplyEmotion(CrowdEmotion.Interested, intensidadeInterested);

@@ -1,5 +1,14 @@
 {
   "dependencies": {
+    "com.magithar.socketio-unity": {
+      "version": "https://github.com/Magithar/socketio-unity.git?path=/package#v1.7.1",
+      "depth": 0,
+      "source": "git",
+      "dependencies": {
+        "com.unity.nuget.newtonsoft-json": "3.2.2"
+      },
+      "hash": "c8e9444241a6f49fb132b32b16bd4059d1e1c3b7"
+    },
     "com.unity.2d.sprite": {
       "version": "1.0.0",
       "depth": 0,
