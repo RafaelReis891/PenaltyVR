@@ -16,6 +16,9 @@ public class MatchUIManager : MonoBehaviour
 	[Header("Jogador Atual")]
 	public TextMeshProUGUI txtCurrentPlayer;
 	public TextMeshProUGUI txtPlacar;
+	public TextMeshProUGUI txtPlacarVR;
+	public TextMeshProUGUI txtTurnInfoVR;
+	public TextMeshProUGUI txtCurrentPlayerVR;
 
 	[Tooltip("Opcional. Necessário apenas para informações específicas do VR.")]
 	public QuestFootKick questFootKick;
@@ -142,15 +145,25 @@ public class MatchUIManager : MonoBehaviour
 			txtMatchStatus.text = "AGUARDANDO";
 
 		if (txtTurnInfo)
+		{
 			txtTurnInfo.text = "Aguardando início da partida...";
+			txtTurnInfoVR.text = "Aguardando início da partida...";
+		}
 
 		if (txtCurrentPlayer)
 			txtCurrentPlayer.text = GetLocalPlayerName() +
 				"\n<size=36>Chutes: 0/" + GetConfiguredShots() +
 				"\nGols: 0</size>";
 
+		txtCurrentPlayerVR.text = GetLocalPlayerName() +
+				"\n<size=0.075>Chutes: 0/" + GetConfiguredShots() +
+				"\nGols: 0</size>";
+
 		if (txtPlacar)
+		{
 			txtPlacar.text = "Placar: 0 - 0";
+			txtPlacarVR.text = "Placar: 0 - 0";
+		}
 
 		if (txtTimer)
 			txtTimer.text = "--:--";
@@ -423,11 +436,20 @@ public class MatchUIManager : MonoBehaviour
 				$"{GetLocalPlayerName()}\n" +
 				$"<size=36>Chutes: {myShots}/{shotsPerPlayer}\n" +
 				$"Gols: {myGoals}</size>";
+
+
+			txtCurrentPlayerVR.text =
+				$"{GetLocalPlayerName()}\n" +
+				$"<size=0.075>Chutes: {myShots}/{shotsPerPlayer}\n" +
+				$"Gols: {myGoals}</size>";
 		}
 
 		if (txtPlacar)
 		{
 			txtPlacar.text =
+				$"Placar: {room.Player1Score} - {room.Player2Score}";
+
+			txtPlacarVR.text =
 				$"Placar: {room.Player1Score} - {room.Player2Score}";
 		}
 	}
@@ -440,7 +462,10 @@ public class MatchUIManager : MonoBehaviour
 				txtMatchStatus.text = "PARTIDA FINALIZADA";
 
 			if (txtTurnInfo)
+			{
 				txtTurnInfo.text = "Todos os chutes foram realizados.";
+				txtTurnInfoVR.text = "Todos os chutes foram realizados.";
+			}
 
 			if (txtTimer)
 				txtTimer.text = "Tempo: 00:00";
@@ -457,7 +482,10 @@ public class MatchUIManager : MonoBehaviour
 				txtMatchStatus.text = "AGUARDANDO INÍCIO";
 
 			if (txtTurnInfo)
+			{
 				txtTurnInfo.text = "O Admin deve iniciar a partida.";
+				txtTurnInfoVR.text = "O Admin deve iniciar a partida.";
+			}
 
 			if (txtTimer)
 				txtTimer.text = "--:--";
@@ -481,6 +509,10 @@ public class MatchUIManager : MonoBehaviour
 			if (txtTurnInfo)
 			{
 				txtTurnInfo.text = isMyTurn
+					? "<color=#00FF00>É A SUA VEZ DE CHUTAR!</color>"
+					: "<color=#FFAA00>Aguardando o adversário...</color>";
+
+				txtTurnInfoVR.text = isMyTurn
 					? "<color=#00FF00>É A SUA VEZ DE CHUTAR!</color>"
 					: "<color=#FFAA00>Aguardando o adversário...</color>";
 			}
