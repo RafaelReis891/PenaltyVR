@@ -1,6 +1,7 @@
 
 using System.Collections;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Threading.Tasks;
 using TMPro;
 using UnityEngine;
@@ -8,6 +9,7 @@ using UnityEngine.Events;
 using UnityEngine.Playables;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
+using UnityEngine.XR;
 
 public class QuestFootKick : MonoBehaviour
 {
@@ -15,6 +17,8 @@ public class QuestFootKick : MonoBehaviour
 
 	[Header("Modo de Jogo")]
 	public bool PLAY_ALONE = false;
+	[Tooltip("Modo local de teste: não conecta ao servidor e permite chutes infinitos.")]
+	public bool DEBUG_MODE = false;
 	public Button StartGameOffline;
 	public PlayableDirector timeline;
 
@@ -30,12 +34,70 @@ public class QuestFootKick : MonoBehaviour
 	public float linearVelocity;
 	private Rigidbody rb;
 
+	[Header("Fonte do movimento VR")]
+	[Tooltip("Transform rastreado usado para medir o chute. Pode ser o controle, a mão ou o pé. Não precisa ser o objeto Kick.")]
+	public Transform motionSource;
+	[Tooltip("Câmera/headset usado para remover o deslocamento global causado pela cabeça.")]
+	public Transform motionReference;
+	public bool compensateHeadMovement = true;
+	[Tooltip("Lê diretamente a posição do controle direito pelo subsistema XR, ignorando o movimento da cabeça.")]
+	public bool useRightHandDevicePose = true;
+	public XRNode trackedHand = XRNode.RightHand;
+	[Tooltip("Transform da origem de tracking usado para converter a pose local do controle para o mundo.")]
+	public Transform trackingOrigin;
+	private Transform activeMotionSource;
+
 	[Header("Goleiro")]
 	public GoalKeeperActions goalKeeper;
 
 	[Header("Configuração do chute")]
 	public float extraForce = 5f;
 	public float upwardForce = 1.5f;
+	[Tooltip("Velocidade mínima do pé para iniciar uma tentativa de chute.")]
+	public float minimumKickSpeed = 0.85f;
+	[Tooltip("Velocidade mínima do pé em direção à bola durante o avanço.")]
+	public float minimumForwardKickSpeed = 0.55f;
+	[Tooltip("Velocidade máxima usada para normalizar a intensidade do gesto.")]
+	public float maximumKickSpeed = 5.5f;
+	[Tooltip("Distância máxima entre o Kick e a bola para aceitar o gesto.")]
+	public float kickContactDistance = 0.85f;
+	public float minimumBallSpeed = 7f;
+	public float maximumBallSpeed = 18f;
+	[Tooltip("Multiplicador geral da força. O valor original 13 equivale a 1x.")]
+	public float shotForceMultiplierReference = 13f;
+	[Range(0f, 1f)]
+	public float movementDirectionInfluence = 0.8f;
+	public float kickCooldown = 0.35f;
+	[Tooltip("Exige um recuo antes do avanço. Reduz falsos chutes causados por movimentos da cabeça.")]
+	public bool requireBackSwing = false;
+	[Tooltip("Ativa a assistência que curva a bola automaticamente em direção ao centro do gol.")]
+	public bool assistCurveTowardGoal = false;
+	public bool disableKickFixedJoint = true;
+
+	[Header("Diagnóstico do movimento")]
+	public bool showKickDebug;
+	[Tooltip("Label opcional para mostrar o estado do gesto. Se vazio, será criado automaticamente no Kick em DEBUG_MODE.")]
+	public TMP_Text gestureStateLabel;
+	public bool createDebugGestureLabel = true;
+	public float kickSpeed;
+	public float kickForwardSpeed;
+	public float lastShotSpeed;
+	public string kickGestureState = "Idle";
+	private TMP_Text runtimeGestureStateLabel;
+
+	private FixedJoint kickJoint;
+	private Vector3 previousKickPosition;
+	private Vector3 smoothedKickVelocity;
+
+	// Deslocamento acumulado do controle durante o avanço do chute.
+	// É este vetor que determina a direção final da bola.
+	private Vector3 kickDirectionDisplacement;
+
+	private bool kickMotionInitialized;
+	private float previousForwardSpeed;
+	private float kickCooldownTimer;
+	private bool kickBackSwingDetected;
+	private bool adminShotRequested;
 
 	[Header("Turnos")]
 	[Min(1)] public int shotsPerPlayer = 5;
@@ -57,6 +119,18 @@ public class QuestFootKick : MonoBehaviour
 
 	[Header("Assistência de curva")]
 	public Transform goalCenter;
+	[Tooltip("Câmera usada para mirar no gol. Se vazio, usa Camera.main.")]
+	public Camera aimCamera;
+	[Tooltip("Faixa central em metros. Dentro dela o chute é considerado CENTRAL.")]
+	public float aimCenterOffset = 0.35f;
+	[Tooltip("Limite lateral da mira no plano do gol.")]
+	public float aimMaxHorizontalOffset = 2.5f;
+	[Tooltip("Altura fixa do alvo no espaço local do gol. 0 = centro vertical do gol.")]
+	public float aimTargetHeight = 0f;
+	public string aimSide = "CENTER";
+	public float aimHorizontalOffset;
+	public Vector3 aimPointWorld;
+	public bool aimRayValid;
 	public float curveStrength = 3f;
 	public float maxCurveAcceleration = 5f;
 	public float curveDuration = 2f;
@@ -103,6 +177,90 @@ public class QuestFootKick : MonoBehaviour
 
 	private string lastRoomStatus = "";
 
+	[Header("Menu de calibração F4")]
+	private bool showTuningMenu;
+	private Rect tuningMenuRect = new Rect(20f, 20f, 390f, 650f);
+	private const int TuningWindowId = 47291;
+	private const string TuningPrefsPrefix = "FootballVR.KickTuning.";
+
+	private string extraForceText;
+	private string upwardForceText;
+	private string minimumKickSpeedText;
+	private string kickContactDistanceText;
+	private string minimumBallSpeedText;
+	private string maximumBallSpeedText;
+	private string aimCenterOffsetText;
+	private string aimMaxHorizontalOffsetText;
+	private string curveStrengthText;
+
+	private void Awake()
+	{
+		LoadTuningSettings();
+	}
+
+	private void LoadTuningSettings()
+	{
+		extraForce = PlayerPrefs.GetFloat(TuningPrefsPrefix + nameof(extraForce), extraForce);
+		upwardForce = PlayerPrefs.GetFloat(TuningPrefsPrefix + nameof(upwardForce), upwardForce);
+		minimumKickSpeed = PlayerPrefs.GetFloat(TuningPrefsPrefix + nameof(minimumKickSpeed), minimumKickSpeed);
+		kickContactDistance = PlayerPrefs.GetFloat(TuningPrefsPrefix + nameof(kickContactDistance), kickContactDistance);
+		minimumBallSpeed = PlayerPrefs.GetFloat(TuningPrefsPrefix + nameof(minimumBallSpeed), minimumBallSpeed);
+		maximumBallSpeed = PlayerPrefs.GetFloat(TuningPrefsPrefix + nameof(maximumBallSpeed), maximumBallSpeed);
+		aimCenterOffset = PlayerPrefs.GetFloat(TuningPrefsPrefix + nameof(aimCenterOffset), aimCenterOffset);
+		aimMaxHorizontalOffset = PlayerPrefs.GetFloat(TuningPrefsPrefix + nameof(aimMaxHorizontalOffset), aimMaxHorizontalOffset);
+		curveStrength = PlayerPrefs.GetFloat(TuningPrefsPrefix + nameof(curveStrength), curveStrength);
+		showKickDebug = PlayerPrefs.GetInt(TuningPrefsPrefix + nameof(showKickDebug), showKickDebug ? 1 : 0) == 1;
+
+		RefreshTuningTextFields();
+	}
+
+	private void SaveTuningSettings()
+	{
+		TryApplyFloat(extraForceText, ref extraForce);
+		TryApplyFloat(upwardForceText, ref upwardForce);
+		TryApplyFloat(minimumKickSpeedText, ref minimumKickSpeed);
+		TryApplyFloat(kickContactDistanceText, ref kickContactDistance);
+		TryApplyFloat(minimumBallSpeedText, ref minimumBallSpeed);
+		TryApplyFloat(maximumBallSpeedText, ref maximumBallSpeed);
+		TryApplyFloat(aimCenterOffsetText, ref aimCenterOffset);
+		TryApplyFloat(aimMaxHorizontalOffsetText, ref aimMaxHorizontalOffset);
+		TryApplyFloat(curveStrengthText, ref curveStrength);
+
+		PlayerPrefs.SetFloat(TuningPrefsPrefix + nameof(extraForce), extraForce);
+		PlayerPrefs.SetFloat(TuningPrefsPrefix + nameof(upwardForce), upwardForce);
+		PlayerPrefs.SetFloat(TuningPrefsPrefix + nameof(minimumKickSpeed), minimumKickSpeed);
+		PlayerPrefs.SetFloat(TuningPrefsPrefix + nameof(kickContactDistance), kickContactDistance);
+		PlayerPrefs.SetFloat(TuningPrefsPrefix + nameof(minimumBallSpeed), minimumBallSpeed);
+		PlayerPrefs.SetFloat(TuningPrefsPrefix + nameof(maximumBallSpeed), maximumBallSpeed);
+		PlayerPrefs.SetFloat(TuningPrefsPrefix + nameof(aimCenterOffset), aimCenterOffset);
+		PlayerPrefs.SetFloat(TuningPrefsPrefix + nameof(aimMaxHorizontalOffset), aimMaxHorizontalOffset);
+		PlayerPrefs.SetFloat(TuningPrefsPrefix + nameof(curveStrength), curveStrength);
+		PlayerPrefs.SetInt(TuningPrefsPrefix + nameof(showKickDebug), showKickDebug ? 1 : 0);
+		PlayerPrefs.Save();
+
+		RefreshTuningTextFields();
+		Debug.Log("[QuestFootKick] Parâmetros do chute salvos.");
+	}
+
+	private void TryApplyFloat(string text, ref float value)
+	{
+		if (float.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out float parsed))
+			value = parsed;
+	}
+
+	private void RefreshTuningTextFields()
+	{
+		extraForceText = extraForce.ToString("0.###", CultureInfo.InvariantCulture);
+		upwardForceText = upwardForce.ToString("0.###", CultureInfo.InvariantCulture);
+		minimumKickSpeedText = minimumKickSpeed.ToString("0.###", CultureInfo.InvariantCulture);
+		kickContactDistanceText = kickContactDistance.ToString("0.###", CultureInfo.InvariantCulture);
+		minimumBallSpeedText = minimumBallSpeed.ToString("0.###", CultureInfo.InvariantCulture);
+		maximumBallSpeedText = maximumBallSpeed.ToString("0.###", CultureInfo.InvariantCulture);
+		aimCenterOffsetText = aimCenterOffset.ToString("0.###", CultureInfo.InvariantCulture);
+		aimMaxHorizontalOffsetText = aimMaxHorizontalOffset.ToString("0.###", CultureInfo.InvariantCulture);
+		curveStrengthText = curveStrength.ToString("0.###", CultureInfo.InvariantCulture);
+	}
+
 	private void Start()
 	{
 		Debug.Log("[QuestFootKick] Iniciando. Papel configurado: " + myRole);
@@ -110,13 +268,50 @@ public class QuestFootKick : MonoBehaviour
 		if (playerLocalLabel != null)
 		{
 			playerLocalLabel.text =
-				$"{playerDisplayName}\r\n<size=36>Chutes: 0/{(PLAY_ALONE ? 1 : shotsPerPlayer)}\r\nGols: 0";
+				$"{playerDisplayName}\r\n<size=36>Chutes: 0/{(DEBUG_MODE ? "∞" : PLAY_ALONE ? "1" : shotsPerPlayer.ToString())}\r\nGols: 0";
 		}
 
 		if (balls == null)
 			balls = new List<GameObject>();
 
 		rb = GetComponent<Rigidbody>();
+		activeMotionSource = motionSource;
+		if (activeMotionSource == null)
+			Debug.LogError("[QuestFootKick] Motion Source não configurado. O chute foi bloqueado para evitar leitura do Kick/cabeça.");
+
+		kickJoint = GetComponent<FixedJoint>();
+
+		if (disableKickFixedJoint)
+		{
+			if (kickJoint != null)
+			{
+				Destroy(kickJoint);
+				kickJoint = null;
+			}
+
+			if (rb != null)
+			{
+				rb.isKinematic = true;
+				rb.useGravity = false;
+				rb.interpolation = RigidbodyInterpolation.Interpolate;
+			}
+		}
+
+		kickMotionInitialized = false;
+		smoothedKickVelocity = Vector3.zero;
+		kickDirectionDisplacement = Vector3.zero;
+
+		if (activeMotionSource != null)
+		{
+			// A primeira amostra válida será capturada no LateUpdate.
+			kickMotionInitialized = false;
+			smoothedKickVelocity = Vector3.zero;
+			kickDirectionDisplacement = Vector3.zero;
+			kickBackSwingDetected = false;
+		}
+
+		if (DEBUG_MODE && createDebugGestureLabel)
+			CreateDebugGestureLabel();
 
 		foreach (GameObject ball in balls)
 		{
@@ -139,6 +334,26 @@ public class QuestFootKick : MonoBehaviour
 		}
 
 		currentBall = 0;
+
+		if (DEBUG_MODE)
+		{
+			Debug.Log("<color=yellow>[QuestFootKick] DEBUG_MODE ATIVADO. Jogo local, sem servidor e com chutes infinitos.</color>");
+			playerShots = 0;
+			opponentShots = 0;
+			turnState = TurnState.PlayerTurn;
+
+			if (!ActivateCurrentBall())
+			{
+				Debug.LogError("[QuestFootKick] DEBUG_MODE não conseguiu ativar a bola.");
+				turnState = TurnState.WaitingRoom;
+				return;
+			}
+
+			if (source != null && !source.isPlaying)
+				source.Play();
+
+			return;
+		}
 
 		// MODO SOLO
 		if (PLAY_ALONE)
@@ -206,6 +421,23 @@ public class QuestFootKick : MonoBehaviour
 		}
 	}
 
+
+		private void LateUpdate()
+		{
+			if (kickMotionInitialized)
+				return;
+
+			if (!TryGetMotionSamplePosition(out Vector3 position))
+				return;
+
+			previousKickPosition = position;
+			smoothedKickVelocity = Vector3.zero;
+			kickDirectionDisplacement = Vector3.zero;
+
+			kickMotionInitialized = true;
+		}
+
+
 	void StartGameButton()
 	{
 		if (timeline != null)
@@ -214,8 +446,21 @@ public class QuestFootKick : MonoBehaviour
 
 	private void Update()
 	{
+		if (Input.GetKeyDown(KeyCode.F4))
+		{
+			showTuningMenu = !showTuningMenu;
+			if (showTuningMenu)
+				RefreshTuningTextFields();
+		}
+
 		if (rb != null)
 			linearVelocity = rb.linearVelocity.magnitude * 3.6f;
+
+		// O tracking dos controles é atualizado no ciclo de frame do XR.
+		// A detecção precisa acompanhar o Transform, não apenas o passo físico.
+		UpdateKickMotion();
+		UpdateAimState();
+		UpdateGestureStateLabel();
 
 		if (!finished)
 			UpdatePendingBalls();
@@ -226,7 +471,225 @@ public class QuestFootKick : MonoBehaviour
 		{
 			SimularChuteAleatorio();
 		}
+
+		if (adminShotRequested)
+		{
+			adminShotRequested = false;
+			SimularChuteAleatorio();
+		}
 	}
+
+	public void RequestAdminRandomShot()
+	{
+		if (finished ||
+			turnState != TurnState.PlayerTurn ||
+			shotInProgress)
+		{
+			Debug.LogWarning(
+				"[QuestFootKick] Comando Admin ignorado: não é a vez do jogador ou já existe um chute.");
+			return;
+		}
+
+		adminShotRequested = true;
+
+		Debug.Log("[QuestFootKick] Comando de chute recebido do painel Admin.");
+	}
+
+	private void CreateDebugGestureLabel()
+	{
+		if (gestureStateLabel != null)
+			return;
+
+		GameObject labelObject = new GameObject("GestureStateDebugLabel");
+		labelObject.transform.SetParent(transform, false);
+		labelObject.transform.localPosition = new Vector3(0f, 0.9f, 0f);
+		labelObject.transform.localScale = Vector3.one * 0.02f;
+
+		TextMeshPro label = labelObject.AddComponent<TextMeshPro>();
+		label.fontSize = 3.5f;
+		label.alignment = TextAlignmentOptions.Center;
+		label.color = Color.yellow;
+		label.text = "GestureState: Idle";
+		labelObject.AddComponent<GestureDebugBillboard>();
+
+		gestureStateLabel = label;
+		runtimeGestureStateLabel = label;
+	}
+
+	private void UpdateGestureStateLabel()
+	{
+		TMP_Text label = gestureStateLabel != null ? gestureStateLabel : runtimeGestureStateLabel;
+		if (label == null)
+			return;
+
+		bool shouldShowLabel = DEBUG_MODE && showKickDebug;
+		label.gameObject.SetActive(shouldShowLabel);
+		if (!shouldShowLabel)
+			return;
+
+		label.text =
+			$"GestureState: {kickGestureState}\n" +
+			$"Aim: {aimSide} ({aimHorizontalOffset:F2})\n" +
+			$"Speed: {kickSpeed:F2} m/s\n" +
+			$"Forward: {kickForwardSpeed:F2} m/s\n" +
+			$"Shot: {lastShotSpeed:F2} m/s";
+
+		label.color = kickGestureState switch
+		{
+			"BackSwing" => Color.yellow,
+			"ForwardSwing" => Color.cyan,
+			"KickDetected" => Color.green,
+			_ => Color.white
+		};
+	}
+
+	private void OnGUI()
+	{
+		if (!showTuningMenu)
+			return;
+
+		GUI.color = Color.white;
+		tuningMenuRect = GUI.Window(
+			TuningWindowId,
+			tuningMenuRect,
+			DrawTuningWindow,
+			"Football VR - Calibracao F4");
+	}
+
+	private void DrawTuningWindow(int windowId)
+	{
+		GUILayout.BeginVertical();
+		GUILayout.Label("Altere os valores e pressione SALVAR.");
+		GUILayout.Space(6f);
+
+		extraForceText = DrawTuningField("ExtraForce", extraForceText);
+		upwardForceText = DrawTuningField("UpwardForce", upwardForceText);
+		minimumKickSpeedText = DrawTuningField("MinimumKickSpeed", minimumKickSpeedText);
+		kickContactDistanceText = DrawTuningField("KickContactDistance", kickContactDistanceText);
+		minimumBallSpeedText = DrawTuningField("MinimumBallSpeed", minimumBallSpeedText);
+		maximumBallSpeedText = DrawTuningField("MaximumBallSpeed", maximumBallSpeedText);
+		showKickDebug = GUILayout.Toggle(showKickDebug, "ShowKickDebug");
+		aimCenterOffsetText = DrawTuningField("AimCenterOffset", aimCenterOffsetText);
+		aimMaxHorizontalOffsetText = DrawTuningField("AimMaxHorizontalOffset", aimMaxHorizontalOffsetText);
+		curveStrengthText = DrawTuningField("CurveStrength", curveStrengthText);
+
+		GUILayout.Space(8f);
+		GUILayout.BeginHorizontal();
+		if (GUILayout.Button("SALVAR"))
+			SaveTuningSettings();
+
+		if (GUILayout.Button("CARREGAR"))
+			LoadTuningSettings();
+
+		if (GUILayout.Button("FECHAR"))
+			showTuningMenu = false;
+		GUILayout.EndHorizontal();
+
+		GUILayout.Space(5f);
+		GUILayout.Label("F4: abrir/fechar menu");
+		GUILayout.EndVertical();
+
+		GUI.DragWindow(new Rect(0f, 0f, 10000f, 24f));
+	}
+
+	private string DrawTuningField(string label, string value)
+	{
+		GUILayout.BeginHorizontal();
+		GUILayout.Label(label, GUILayout.Width(190f));
+		string result = GUILayout.TextField(value ?? string.Empty);
+		GUILayout.EndHorizontal();
+		return result;
+	}
+
+	private void UpdateAimState()
+	{
+		Camera cameraToUse = aimCamera != null ? aimCamera : Camera.main;
+
+		if (goalCenter == null || cameraToUse == null)
+		{
+			aimRayValid = false;
+			aimSide = "CENTER";
+			aimHorizontalOffset = 0f;
+			return;
+		}
+
+		Ray gazeRay = new Ray(
+			cameraToUse.transform.position,
+			cameraToUse.transform.forward);
+		Plane goalPlane = new Plane(goalCenter.forward, goalCenter.position);
+
+		if (!goalPlane.Raycast(gazeRay, out float distance) || distance < 0f)
+		{
+			aimRayValid = false;
+			aimSide = "CENTER";
+			aimHorizontalOffset = 0f;
+			return;
+		}
+
+		Vector3 gazeHit = gazeRay.GetPoint(distance);
+		Vector3 localHit = goalCenter.InverseTransformPoint(gazeHit);
+		aimHorizontalOffset = Mathf.Clamp(
+			localHit.x,
+			-aimMaxHorizontalOffset,
+			aimMaxHorizontalOffset);
+
+		if (aimHorizontalOffset < -aimCenterOffset)
+			aimSide = "LEFT";
+		else if (aimHorizontalOffset > aimCenterOffset)
+			aimSide = "RIGHT";
+		else
+			aimSide = "CENTER";
+
+		Vector3 localTarget = new Vector3(
+			aimHorizontalOffset,
+			aimTargetHeight,
+			0f);
+		aimPointWorld = goalCenter.TransformPoint(localTarget);
+		aimRayValid = true;
+
+		Debug.DrawRay(
+			cameraToUse.transform.position,
+			cameraToUse.transform.forward * distance,
+			Color.cyan);
+		Debug.DrawLine(
+			gazeHit,
+			aimPointWorld,
+			Color.yellow);
+	}
+
+	private bool TryGetMotionSamplePosition(out Vector3 position)
+{
+    if (activeMotionSource == null)
+    {
+        position = Vector3.zero;
+        return false;
+    }
+
+    // Única fonte do gesto: o Transform explicitamente configurado em
+    // motionSource. Não usa câmera, XRNode, trackingOrigin ou pose de HMD.
+    position = activeMotionSource.position;
+    return true;
+}
+
+
+private Vector3 GetMotionWorldPosition()
+{
+    if (!TryGetMotionSamplePosition(out Vector3 worldPosition))
+        return Vector3.zero;
+
+    return worldPosition;
+}
+
+
+private Vector3 GetKickDirectionWorld()
+{
+    Vector3 direction = kickDirectionDisplacement;
+
+    if (trackingOrigin != null)
+        direction = trackingOrigin.TransformDirection(direction);
+
+    return direction;
+}
 
 	private void OnSuccessfullyJoinedRoom()
 	{
@@ -350,6 +813,8 @@ public class QuestFootKick : MonoBehaviour
 		else
 			turnState = TurnState.WaitingOpponent;
 	}
+
+
 
 	private void ResetLocalMatch()
 	{
@@ -526,48 +991,6 @@ public class QuestFootKick : MonoBehaviour
 		return true;
 	}
 
-	private void OnCollisionEnter(Collision collision)
-	{
-		if (finished ||
-			turnState != TurnState.PlayerTurn ||
-			shotInProgress)
-			return;
-
-		if (!PLAY_ALONE &&
-			(FirebaseManager.Instance == null ||
-			 !FirebaseManager.Instance.IsMyTurn()))
-			return;
-
-		Rigidbody ballRb = collision.rigidbody;
-
-		if (ballRb == null ||
-			!ballRb.gameObject.CompareTag("Ball"))
-			return;
-
-		GameObject current = GetCurrentBall();
-
-		if (current == null || ballRb.gameObject != current)
-			return;
-
-		Vector3 kickDirection = ballRb.linearVelocity.normalized;
-
-		if (kickDirection.sqrMagnitude < 0.001f)
-		{
-			if (collision.contactCount == 0)
-				return;
-
-			kickDirection = -collision.GetContact(0).normal;
-		}
-
-		if (kickDirection.sqrMagnitude < 0.001f)
-			return;
-
-		kickDirection.y += upwardForce;
-		kickDirection.Normalize();
-
-		LaunchBall(ballRb, kickDirection);
-	}
-
 	[ContextMenu("Testar Chute Aleatório")]
 	public void SimularChuteAleatorio()
 	{
@@ -576,7 +999,7 @@ public class QuestFootKick : MonoBehaviour
 			shotInProgress)
 			return;
 
-		if (!PLAY_ALONE &&
+		if (!PLAY_ALONE && !DEBUG_MODE &&
 			(FirebaseManager.Instance == null ||
 			 !FirebaseManager.Instance.IsMyTurn()))
 			return;
@@ -623,17 +1046,17 @@ public class QuestFootKick : MonoBehaviour
 		direction.y = upwardForce;
 		direction.Normalize();
 
-		LaunchBall(ballRb, direction);
+		LaunchBall(ballRb, direction, extraForce);
 
 		return true;
 	}
 
-	private void LaunchBall(Rigidbody ballRb, Vector3 direction)
+	private void LaunchBall(Rigidbody ballRb, Vector3 direction, float launchSpeed = -1f)
 	{
 		if (ballRb == null || shotInProgress)
 			return;
 
-		if (!PLAY_ALONE &&
+		if (!PLAY_ALONE && !DEBUG_MODE &&
 			(FirebaseManager.Instance == null ||
 			 !FirebaseManager.Instance.IsMyTurn()))
 			return;
@@ -651,9 +1074,13 @@ public class QuestFootKick : MonoBehaviour
 		ballRb.isKinematic = false;
 		ballRb.WakeUp();
 
-		ballRb.AddForce(direction * extraForce, ForceMode.Impulse);
+		if (launchSpeed <= 0f)
+			launchSpeed = extraForce;
 
-		if (goalCenter != null)
+		ballRb.linearVelocity = direction * launchSpeed;
+		ballRb.angularVelocity = Vector3.zero;
+
+		if (assistCurveTowardGoal && goalCenter != null)
 		{
 			curvedBall = ballRb;
 			curveTimer = curveDuration;
@@ -759,6 +1186,40 @@ public class QuestFootKick : MonoBehaviour
 
 	private async Task SubmitShotResult(bool goal)
 	{
+		if (DEBUG_MODE)
+		{
+			if (goal)
+			{
+				if (myRole == PlayerRole.Player1)
+					player1Goals++;
+				else
+					player2Goals++;
+
+				onPlayerGoal?.Invoke();
+				Debug.Log("<color=green>[FootballVR] DEBUG_MODE: GOL!</color>");
+			}
+			else
+			{
+				Debug.Log("<color=red>[FootballVR] DEBUG_MODE: chute sem gol.</color>");
+			}
+
+			playerShots++;
+			int nextBall = balls.Count > 0 ? (currentBall + 1) % balls.Count : 0;
+			ResetAllBalls();
+			currentBall = nextBall;
+			turnState = TurnState.PlayerTurn;
+
+			if (playerLocalLabel != null)
+			{
+				int goals = myRole == PlayerRole.Player1 ? player1Goals : player2Goals;
+				playerLocalLabel.text =
+					$"{playerDisplayName}\r\n<size=36>Chutes: {playerShots}/∞\r\nGols: {goals}";
+			}
+
+			ActivateCurrentBall();
+			return;
+		}
+
 		if (PLAY_ALONE)
 		{
 			if (goal)
@@ -847,6 +1308,218 @@ public class QuestFootKick : MonoBehaviour
 
 		curveTimer -= Time.fixedDeltaTime;
 	}
+
+	
+private void UpdateKickMotion()
+{
+    if (kickCooldownTimer > 0f)
+        kickCooldownTimer -= Time.deltaTime;
+
+    if (!TryGetMotionSamplePosition(out Vector3 currentSample))
+    {
+        kickGestureState = "TrackingLost";
+
+        kickBackSwingDetected = false;
+        smoothedKickVelocity = Vector3.zero;
+        kickDirectionDisplacement = Vector3.zero;
+
+        kickMotionInitialized = false;
+        return;
+    }
+
+    // Primeira amostra após inicialização ou perda de tracking.
+    // Não calcular velocidade nesse frame para evitar um pico falso.
+    if (!kickMotionInitialized)
+    {
+        previousKickPosition = currentSample;
+        smoothedKickVelocity = Vector3.zero;
+        kickDirectionDisplacement = Vector3.zero;
+
+        kickMotionInitialized = true;
+        kickGestureState = "TrackingReady";
+        return;
+    }
+
+    float dt = Mathf.Max(Time.deltaTime, 0.0001f);
+
+    Vector3 delta = currentSample - previousKickPosition;
+    previousKickPosition = currentSample;
+
+    Vector3 rawVelocity = delta / dt;
+
+    // Ignora saltos bruscos do tracking/recentragem.
+    // Um salto desses não pode gerar um chute.
+    if (rawVelocity.magnitude > 8f)
+    {
+        smoothedKickVelocity = Vector3.zero;
+        kickDirectionDisplacement = Vector3.zero;
+        kickBackSwingDetected = false;
+
+        kickGestureState = "TrackingJump";
+        return;
+    }
+
+    // Suavização da velocidade usada apenas para reconhecer
+    // a intensidade do gesto.
+    float smoothing = 1f - Mathf.Exp(-20f * dt);
+
+    smoothedKickVelocity = Vector3.Lerp(
+        smoothedKickVelocity,
+        rawVelocity,
+        smoothing);
+
+    kickSpeed = smoothedKickVelocity.magnitude;
+
+    GameObject ball = GetCurrentBall();
+
+    if (ball == null ||
+        !ball.activeSelf ||
+        shotInProgress ||
+        turnState != TurnState.PlayerTurn)
+    {
+        kickGestureState = "Idle";
+        kickBackSwingDetected = false;
+        kickDirectionDisplacement = Vector3.zero;
+        return;
+    }
+
+    // Posição do controle direito convertida para mundo.
+    Vector3 controllerWorldPosition = GetMotionWorldPosition();
+
+    Vector3 toBall =
+        ball.transform.position - controllerWorldPosition;
+
+    float distanceToBall = toBall.magnitude;
+
+    if (distanceToBall > 0.001f)
+        toBall /= distanceToBall;
+
+    // Velocidade do controle na direção da bola.
+    // Usada para validar o avanço, não para determinar
+    // a direção final do chute.
+    // As amostras já estão em world space; não aplicar outra conversão.
+    Vector3 worldVelocity = smoothedKickVelocity;
+
+    kickForwardSpeed = Vector3.Dot(worldVelocity, toBall);
+
+    // Detecta o recuo, se ele estiver habilitado.
+    if (distanceToBall <= kickContactDistance &&
+        kickForwardSpeed < -0.35f)
+    {
+        kickBackSwingDetected = true;
+
+        // O recuo não deve entrar na direção do chute.
+        kickDirectionDisplacement = Vector3.zero;
+
+        kickGestureState = "BackSwing";
+        return;
+    }
+
+    // Acumula somente o deslocamento do controle durante
+    // o avanço em direção à bola.
+    if (kickForwardSpeed > 0.15f)
+    {
+        kickDirectionDisplacement += delta;
+    }
+    else if (kickSpeed < 0.25f)
+    {
+        // Quando o controle para, limpa o vetor antigo.
+        // Isso evita que movimentos anteriores influenciem
+        // o próximo chute.
+        kickDirectionDisplacement = Vector3.zero;
+    }
+
+    bool movingForwardEnough =
+        kickSpeed >= minimumKickSpeed &&
+        kickForwardSpeed >= minimumForwardKickSpeed;
+
+    bool validGesture = requireBackSwing
+        ? kickBackSwingDetected && movingForwardEnough
+        : movingForwardEnough;
+
+    if (kickCooldownTimer <= 0f &&
+        distanceToBall <= kickContactDistance &&
+        validGesture)
+    {
+        if (TryExecuteMotionKick(ball))
+        {
+            kickCooldownTimer = kickCooldown;
+
+            kickBackSwingDetected = false;
+            kickDirectionDisplacement = Vector3.zero;
+
+            kickGestureState = "KickDetected";
+        }
+    }
+}
+
+	private bool TryExecuteMotionKick(GameObject ball)
+{
+    if (ball == null || shotInProgress)
+        return false;
+
+    if (!PLAY_ALONE && !DEBUG_MODE &&
+        (FirebaseManager.Instance == null ||
+         !FirebaseManager.Instance.IsMyTurn()))
+    {
+        return false;
+    }
+
+    Rigidbody ballRb = ball.GetComponent<Rigidbody>();
+
+    if (ballRb == null)
+        return false;
+
+		UpdateAimState();
+
+		Vector3 targetPosition = aimRayValid
+			? aimPointWorld
+			: goalCenter != null ? goalCenter.position : ballRb.position + transform.forward;
+
+		Vector3 movementDirection =
+			Vector3.ProjectOnPlane(targetPosition - ballRb.position, Vector3.up);
+
+		if (movementDirection.sqrMagnitude < 0.0001f)
+			return false;
+
+		movementDirection.Normalize();
+
+    float strength = Mathf.InverseLerp(
+        minimumKickSpeed,
+        maximumKickSpeed,
+        kickSpeed);
+
+    float ballSpeed = Mathf.Lerp(
+        minimumBallSpeed,
+        maximumBallSpeed,
+        strength);
+
+    float forceMultiplier = Mathf.Max(
+        0.1f,
+        extraForce / Mathf.Max(shotForceMultiplierReference, 0.01f));
+
+    ballSpeed *= forceMultiplier;
+
+    lastShotSpeed = ballSpeed;
+
+    // A direção horizontal vem do movimento real do controle.
+    // A componente Y é apenas a elevação configurada.
+    Vector3 direction = movementDirection;
+
+    direction.y = upwardForce;
+    direction.Normalize();
+
+    LaunchBall(ballRb, direction, ballSpeed);
+
+    Debug.Log(
+        $"[QuestFootKick] Chute reconhecido. " +
+        $"Velocidade controle={kickSpeed:F2} m/s, " +
+        $"velocidade bola={ballSpeed:F2} m/s, " +
+			$"lado={aimSide}, offset={aimHorizontalOffset:F2}, " +
+        $"direção final={direction}");
+
+    return true;
+}
 
 	private void ApplyGoalCurve()
 	{

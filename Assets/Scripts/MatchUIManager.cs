@@ -19,6 +19,7 @@ public class MatchUIManager : MonoBehaviour
 	public TextMeshProUGUI txtPlacarVR;
 	public TextMeshProUGUI txtTurnInfoVR;
 	public TextMeshProUGUI txtCurrentPlayerVR;
+	public TextMeshProUGUI txtP1Info, txtP2Info;
 
 	[Tooltip("Opcional. Necessário apenas para informações específicas do VR.")]
 	public QuestFootKick questFootKick;
@@ -52,6 +53,8 @@ public class MatchUIManager : MonoBehaviour
 	public UnityEvent onMatchStarted;
 	public UnityEvent onMatchFinished;
 	public UnityEvent onRestartMode;
+
+	private Coroutine winnerCoroutine;
 
 	private FirebaseManager firebaseManager;
 	private FirebaseManager.RoomState currentRoom;
@@ -102,7 +105,50 @@ public class MatchUIManager : MonoBehaviour
 
 		if (feedbackCoroutine != null)
 			StopCoroutine(feedbackCoroutine);
+
+
+		if (winnerCoroutine != null)
+			StopCoroutine(winnerCoroutine);
 	}
+
+
+	private void ShowWinnerMessage(string message)
+	{
+		if (txtWinner == null)
+			return;
+
+		// Cancela o temporizador anterior, se existir.
+		if (winnerCoroutine != null)
+		{
+			StopCoroutine(winnerCoroutine);
+			winnerCoroutine = null;
+		}
+
+		txtWinner.text = message;
+
+		// Limpa automaticamente após 3 segundos.
+		winnerCoroutine = StartCoroutine(HideWinnerAfterDelay());
+	}
+
+	private IEnumerator HideWinnerAfterDelay()
+	{
+		yield return new WaitForSeconds(3f);
+
+		ClearWinnerMessage();
+	}
+
+	private void ClearWinnerMessage()
+	{
+		if (winnerCoroutine != null)
+		{
+			StopCoroutine(winnerCoroutine);
+			winnerCoroutine = null;
+		}
+
+		if (txtWinner != null)
+			txtWinner.text = "";
+	}
+
 
 	private void SubscribeEvents()
 	{
@@ -155,14 +201,16 @@ public class MatchUIManager : MonoBehaviour
 				"\n<size=36>Chutes: 0/" + GetConfiguredShots() +
 				"\nGols: 0</size>";
 
-		txtCurrentPlayerVR.text = GetLocalPlayerName() +
-				"\n<size=0.075>Chutes: 0/" + GetConfiguredShots() +
-				"\nGols: 0</size>";
+		txtCurrentPlayerVR.text = $"Chutes: 0/{GetConfiguredShots()}";
+
+		bool isPlayer1 = IsLocalPlayer1();
+		txtP1Info.text = isPlayer1 ? "Você" : "Jogador 1";
+		txtP2Info.text = isPlayer1 ? "Jogador 2" : "Você";
 
 		if (txtPlacar)
 		{
 			txtPlacar.text = "Placar: 0 - 0";
-			txtPlacarVR.text = "Placar: 0 - 0";
+			txtPlacarVR.text = "0 - 0";
 		}
 
 		if (txtTimer)
@@ -262,6 +310,7 @@ public class MatchUIManager : MonoBehaviour
 		currentRoom = room;
 
 		int turnNumber = Mathf.Max(0, room.TurnNumber);
+
 		int shotsPerPlayer = room.ShotsPerPlayer > 0
 			? room.ShotsPerPlayer
 			: GetConfiguredShots();
@@ -279,9 +328,12 @@ public class MatchUIManager : MonoBehaviour
 
 		if (!isFirstUpdate)
 		{
-			DetectGoals(room, isPlayer1);
+			// Detecta o gol primeiro.
+			bool goalDetected = DetectGoals(room, isPlayer1);
 
-			DetectTurnChanges(room, turnNumber);
+			// Se houve gol nesta atualização, não apaga a mensagem
+			// mesmo que a vez também tenha mudado para o jogador local.
+			DetectTurnChanges(room, turnNumber, goalDetected);
 
 			DetectMatchStart(room);
 
@@ -298,38 +350,76 @@ public class MatchUIManager : MonoBehaviour
 		lastStatus = room.Status;
 	}
 
-	private void DetectGoals(FirebaseManager.RoomState room, bool isPlayer1)
+
+
+	private bool DetectGoals(FirebaseManager.RoomState room, bool isPlayer1)
 	{
-		if (room.Player1Score > lastPlayer1Score)
+		bool player1Scored = room.Player1Score > lastPlayer1Score;
+		bool player2Scored = room.Player2Score > lastPlayer2Score;
+
+		bool goalDetected = player1Scored || player2Scored;
+
+		if (!goalDetected)
+			return false;
+
+		Debug.Log(
+			$"[MatchUI] GOL DETECTADO | " +
+			$"PlayerId: {firebaseManager.PlayerId} | " +
+			$"P1: {lastPlayer1Score} -> {room.Player1Score} | " +
+			$"P2: {lastPlayer2Score} -> {room.Player2Score}"
+		);
+
+		// Jogador 1 marcou.
+		if (player1Scored)
 		{
-			if (isPlayer1)
+			bool wasMyGoal = isPlayer1;
+
+			if (wasMyGoal)
 			{
 				ShowFeedback("GOL SEU!", Color.green);
 				onMyGoal?.Invoke();
+
+				ShowWinnerMessage("GOOOOOOOL!");
 			}
 			else
 			{
 				ShowFeedback("GOL DO ADVERSÁRIO!", Color.red);
 				onOpponentGoal?.Invoke();
+
+				ShowWinnerMessage("GOL DO ADVERSÁRIO!");
 			}
 		}
 
-		if (room.Player2Score > lastPlayer2Score)
+		// Jogador 2 marcou.
+		if (player2Scored)
 		{
-			if (!isPlayer1)
+			bool wasMyGoal = !isPlayer1;
+
+			if (wasMyGoal)
 			{
 				ShowFeedback("GOL SEU!", Color.green);
 				onMyGoal?.Invoke();
+
+				ShowWinnerMessage("GOOOOOOOL!");
 			}
 			else
 			{
 				ShowFeedback("GOL DO ADVERSÁRIO!", Color.red);
 				onOpponentGoal?.Invoke();
+
+				ShowWinnerMessage("GOL DO ADVERSÁRIO!");
 			}
 		}
+
+		return true;
 	}
 
-	private void DetectTurnChanges(FirebaseManager.RoomState room, int turnNumber)
+
+
+	private void DetectTurnChanges(
+	FirebaseManager.RoomState room,
+	int turnNumber,
+	bool goalDetectedThisUpdate)
 	{
 		if (turnNumber == lastTurnNumber || turnNumber <= 0)
 			return;
@@ -359,6 +449,13 @@ public class MatchUIManager : MonoBehaviour
 		{
 			ShowFeedback("SUA VEZ!", Color.cyan);
 			onMyTurnStart?.Invoke();
+
+			// Não apaga o gol que acabou de ser detectado.
+			// A mensagem do gol terá prioridade durante 3 segundos.
+			if (!goalDetectedThisUpdate)
+			{
+				ClearWinnerMessage();
+			}
 		}
 		else if (!string.IsNullOrEmpty(room.CurrentTurnPlayer))
 		{
@@ -397,23 +494,27 @@ public class MatchUIManager : MonoBehaviour
 		onMatchFinished?.Invoke();
 	}
 
+
 	private void UpdateScoreboard(
 		FirebaseManager.RoomState room,
 		int shotsPerPlayer,
 		bool isPlayer1)
 	{
+		// Calcula os chutes realizados por cada jogador.
 		int p1Shots = (room.TurnNumber + 1) / 2;
 		int p2Shots = room.TurnNumber / 2;
 
 		p1Shots = Mathf.Clamp(p1Shots, 0, shotsPerPlayer);
 		p2Shots = Mathf.Clamp(p2Shots, 0, shotsPerPlayer);
 
+		// Placar dos jogadores.
 		if (txtPlayer1Score)
 			txtPlayer1Score.text = "Jogador 1: " + room.Player1Score;
 
 		if (txtPlayer2Score)
 			txtPlayer2Score.text = "Jogador 2: " + room.Player2Score;
 
+		// Quantidade de chutes de cada jogador.
 		if (txtPlayer1Shots)
 			txtPlayer1Shots.text =
 				$"Chutes: {p1Shots}/{shotsPerPlayer}";
@@ -422,6 +523,7 @@ public class MatchUIManager : MonoBehaviour
 			txtPlayer2Shots.text =
 				$"Chutes: {p2Shots}/{shotsPerPlayer}";
 
+		// Dados do jogador local.
 		int myGoals = isPlayer1
 			? room.Player1Score
 			: room.Player2Score;
@@ -436,23 +538,30 @@ public class MatchUIManager : MonoBehaviour
 				$"{GetLocalPlayerName()}\n" +
 				$"<size=36>Chutes: {myShots}/{shotsPerPlayer}\n" +
 				$"Gols: {myGoals}</size>";
-
-
-			txtCurrentPlayerVR.text =
-				$"{GetLocalPlayerName()}\n" +
-				$"<size=0.075>Chutes: {myShots}/{shotsPerPlayer}\n" +
-				$"Gols: {myGoals}</size>";
 		}
 
+		// IMPORTANTE:
+		// Agora o texto VR utiliza a quantidade real de chutes.
+		if (txtCurrentPlayerVR)
+		{
+			txtCurrentPlayerVR.text =
+				$"Chutes: {myShots}/{shotsPerPlayer}";
+		}
+
+		// Placar geral.
 		if (txtPlacar)
 		{
 			txtPlacar.text =
 				$"Placar: {room.Player1Score} - {room.Player2Score}";
+		}
 
+		if (txtPlacarVR)
+		{
 			txtPlacarVR.text =
-				$"Placar: {room.Player1Score} - {room.Player2Score}";
+				$"{room.Player1Score} - {room.Player2Score}";
 		}
 	}
+
 
 	private void UpdateMatchStatus(FirebaseManager.RoomState room, bool isPlayer1)
 	{
@@ -470,8 +579,11 @@ public class MatchUIManager : MonoBehaviour
 			if (txtTimer)
 				txtTimer.text = "Tempo: 00:00";
 
-			if (txtWinner)
+			// Não substitui uma mensagem de gol que ainda está sendo exibida.
+			if (txtWinner && winnerCoroutine == null)
+			{
 				txtWinner.text = GetMatchResult();
+			}
 
 			return;
 		}
@@ -490,9 +602,6 @@ public class MatchUIManager : MonoBehaviour
 			if (txtTimer)
 				txtTimer.text = "--:--";
 
-			if (txtWinner)
-				txtWinner.text = "";
-
 			return;
 		}
 
@@ -500,9 +609,6 @@ public class MatchUIManager : MonoBehaviour
 		{
 			if (txtMatchStatus)
 				txtMatchStatus.text = "EM ANDAMENTO";
-
-			if (txtWinner)
-				txtWinner.text = "";
 
 			bool isMyTurn = room.CurrentTurnPlayer == firebaseManager.PlayerId;
 

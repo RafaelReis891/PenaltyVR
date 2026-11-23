@@ -92,6 +92,15 @@ public class FirebaseManager : MonoBehaviour
 
 	private async void Start()
 	{
+		if (questFootKick == null)
+			questFootKick = FindAnyObjectByType<QuestFootKick>(FindObjectsInactive.Include);
+
+		if (questFootKick != null && questFootKick.DEBUG_MODE)
+		{
+			Debug.Log("[FirebaseManager] DEBUG_MODE ativo. Inicialização do servidor ignorada.");
+			return;
+		}
+
 		await InitializeFirebaseAsync();
 	}
 
@@ -101,6 +110,13 @@ public class FirebaseManager : MonoBehaviour
 		{
 			showServerConfig = !showServerConfig;
 		}
+	}
+
+	[Serializable]
+	private class AdminSimulateShotPayload
+	{
+		public string room;
+		public string commandId;
 	}
 
 	#region Configuração do servidor
@@ -370,7 +386,14 @@ public class FirebaseManager : MonoBehaviour
 			socket.OnDisconnected += OnLocalDisconnected;
 			socket.OnError += OnLocalSocketError;
 
+			// Atualização normal dos dados da sala.
 			socket.On("value", OnLocalValueReceived);
+
+			// Comando recebido do painel administrativo HTML.
+			socket.On(
+				"admin:simulate-shot",
+				OnAdminSimulateShotReceived
+			);
 
 			isLocalSocketConfigured = true;
 		}
@@ -432,6 +455,88 @@ public class FirebaseManager : MonoBehaviour
 		}
 
 		return true;
+	}
+
+	private void OnAdminSimulateShotReceived(string msg)
+	{
+		try
+		{
+			if (string.IsNullOrEmpty(msg))
+			{
+				Debug.LogWarning(
+					"[FootballVR Admin] Comando recebido sem payload."
+				);
+
+				return;
+			}
+
+			AdminSimulateShotPayload payload =
+				JsonUtility.FromJson<AdminSimulateShotPayload>(msg);
+
+			if (payload == null)
+			{
+				Debug.LogWarning(
+					"[FootballVR Admin] Payload inválido."
+				);
+
+				return;
+			}
+
+			// Só aceita comandos enquanto estiver conectado
+			// e dentro da sala correta.
+			if (!IsConnected || !IsInRoom)
+				return;
+
+			string targetRoom = string.IsNullOrEmpty(roomCode)
+				? FIXED_ROOM_CODE
+				: roomCode;
+
+			if (!string.Equals(
+				payload.room,
+				targetRoom,
+				StringComparison.OrdinalIgnoreCase))
+			{
+				Debug.Log(
+					"[FootballVR Admin] Comando ignorado. " +
+					"Sala recebida: " + payload.room +
+					" | Sala atual: " + targetRoom
+				);
+
+				return;
+			}
+
+			if (questFootKick == null)
+			{
+				questFootKick =
+					FindAnyObjectByType<QuestFootKick>(
+						FindObjectsInactive.Include
+					);
+			}
+
+			if (questFootKick == null)
+			{
+				Debug.LogWarning(
+					"[FootballVR Admin] QuestFootKick não encontrado."
+				);
+
+				return;
+			}
+
+			Debug.Log(
+				"[FootballVR Admin] Comando de chute recebido. " +
+				"ID: " + payload.commandId
+			);
+
+			// Chama o método que já existe no QuestFootKick.
+			questFootKick.SimularChuteAleatorio();
+		}
+		catch (Exception ex)
+		{
+			Debug.LogError(
+				"[FootballVR Admin] Erro ao processar comando: " +
+				ex.Message
+			);
+		}
 	}
 
 	private void OnLocalConnected()

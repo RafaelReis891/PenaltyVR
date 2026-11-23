@@ -41,6 +41,14 @@ public class FootballFirebaseController : MonoBehaviour
     private void Start()
     {
         ResolveIdentity();
+
+        if (questFootKick != null && questFootKick.DEBUG_MODE)
+        {
+            localError = "DEBUG_MODE ativo: conexão com o servidor desabilitada.";
+            Debug.Log("[FootballFirebaseController] DEBUG_MODE ativo. Conexão ignorada.");
+            return;
+        }
+
         manager = FirebaseManager.Instance;
 
         if (manager == null)
